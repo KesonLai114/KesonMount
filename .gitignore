@@ -1,0 +1,19 @@
+# macOS / 编辑器
+.DS_Store
+.AppleDouble
+*.swp
+*~
+
+# 可再生成的构建产物（体积大，不进版本库）
+dist/*.dmg
+dist/*.pkg
+dist/_旧构建残留/
+docs/*.pdf
+build/
+*.app/
+
+# 说明书 PDF 渲染工具的中间产物
+/tmp/
+
+# 运行时配置备份（App 检测到外部修改时自动生成）
+drives.json.external-*

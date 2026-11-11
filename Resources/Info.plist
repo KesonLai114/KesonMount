@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>网盘管家</string>
+	<key>CFBundleDisplayName</key>
+	<string>网盘管家</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.keson.netmount</string>
+	<key>CFBundleExecutable</key>
+	<string>NetMount</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.5.0</string>
+	<key>CFBundleVersion</key>
+	<string>12</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>网盘管家需要调用「访达」来挂载网络磁盘。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>网盘管家需要访问本地网络，用来自动发现局域网里的网络硬盘（NAS）。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_smb._tcp</string>
+		<string>_webdav._tcp</string>
+		<string>_webdavs._tcp</string>
+	</array>
+	<key>NSHumanReadableCopyright</key>
+	<string>网盘管家 · 本地网络磁盘管理器</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+</dict>
+</plist>
