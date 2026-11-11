@@ -8,10 +8,11 @@ enum AppDelegate {
     static let isHeadless = false
 }
 
-// 纯逻辑回归测试。
+// 回归测试。
 //
-// 不启动 App、不碰钥匙串、不发网络请求、不挂载磁盘，只验证那些「写错就会出事」
-// 的纯函数：挂载点白名单、外部配置解析、URL 拼装、密码脱敏、shell/AppleScript 转义。
+// 不启动 App、不碰钥匙串、不发网络请求、不挂载磁盘。前面 6 组验证「写错就会出事」
+// 的纯函数：挂载点白名单、外部配置解析、URL 拼装、密码脱敏、shell/AppleScript 转义；
+// 第 7 组会真实 fork /bin 下的无害命令，验证 Shell 的超时回收与 stdin 不死锁。
 // 由 tests/run.sh 把 Sources（去掉 main.swift）连同本文件编译成一个命令行程序。
 
 private var passed = 0
@@ -170,6 +171,71 @@ w.webdavSecure = false
 w.port = 5005
 eq("WebDAV HTTP 展示地址", w.address, "http://nas:5005/dav")
 eq("协议默认端口", DiskProtocol.webdav.defaultPort, 443)
+
+// MARK: - 7. Shell 子进程回归（真实启动本地命令）
+//
+// 这一组会真的 fork /bin 下的无害命令，守住 1.5.0 修的几件事：
+// ① 超时 kill 后必须 waitUntilExit 回收、并关掉全部管道，否则假死盘每轮卸载超时
+//    都会留下挂起的读线程和未关闭的 fd；
+// ② stdout/stderr 读句柄要先挂上再写 stdin，否则超过 64KB 管道缓冲就会互相等死；
+// ③ 超时不能回传子进程 stderr（osascript 报错时会把带密码的脚本原文吐回来）；
+// ④ stdin 为空时接 /dev/null，不然 cat/smbutil 这类命令会一直等输入。
+//
+// 不用 ps 查僵尸：沙箱里 ps 连启动都会被拒，而 fcntl / proc_listchildpids 只看自己
+// 这个进程，本机和 CI 都能跑，也更贴近「有没有把资源还回去」这件事。
+
+private func openFDCount() -> Int {
+    var n = 0
+    for fd in 0..<1024 where fcntl(Int32(fd), F_GETFD) != -1 { n += 1 }
+    return n
+}
+
+private func childPIDCount() -> Int {
+    var pids = [Int32](repeating: 0, count: 256)
+    let n = proc_listchildpids(getpid(), &pids, 256 * 4)
+    return max(0, Int(n))
+}
+
+section("7. Shell 子进程回归（真实跑本地命令）")
+
+let echo = Shell.run("/bin/echo", ["netmount-ok"], timeout: 5)
+eq("echo 退出码", echo.status, 0)
+eq("echo 标准输出", echo.out.trimmingCharacters(in: .whitespacesAndNewlines), "netmount-ok")
+
+// 先预热一次，把 Diagnostics / Logger 的一次性初始化排除在基线之外
+_ = Shell.run("/bin/sleep", ["4.71"], timeout: 0.3)
+let fdBefore = openFDCount()
+let childrenBefore = childPIDCount()
+
+var allTimedOut = true
+for _ in 0..<4 {
+    if Shell.run("/bin/sleep", ["4.71"], timeout: 0.4).status != -2 { allTimedOut = false }
+}
+ok("连续 4 次超时都返回 -2", allTimedOut)
+
+let fdAfter = openFDCount()
+ok("连续超时不泄漏管道 fd", fdAfter <= fdBefore + 2, "之前 \(fdBefore)，之后 \(fdAfter)")
+eq("超时子进程已全部回收", childPIDCount(), childrenBefore)
+ok("超时后新命令仍能正常执行",
+   Shell.run("/bin/echo", ["after-timeout"], timeout: 5).out.contains("after-timeout"))
+
+let leaked = Shell.run("/bin/sh", ["-c", #"echo 'with password "s3cr3t"' >&2; exec sleep 4.72"#], timeout: 0.5)
+ok("超时不回传子进程 stderr（可能含密码）", !leaked.err.contains("s3cr3t"))
+ok("超时文案固定、不含命令原文", leaked.err.hasPrefix("命令超时（") && !leaked.err.contains("exec sleep"))
+
+let big = String(repeating: "x", count: 200_000)
+let roundTrip = Shell.run("/bin/cat", [], timeout: 8, input: big)
+eq("200KB stdin 不死锁，全量回显", roundTrip.out.count, big.count)
+eq("大 stdin 未超时", roundTrip.status, 0)
+
+let noInput = Shell.run("/bin/cat", [], timeout: 3)
+eq("无 input 时接 /dev/null，不会等 stdin", noInput.status, 0)
+ok("无 input 时输出为空", noInput.out.isEmpty)
+
+let badUTF8 = Shell.run("/usr/bin/printf", ["\\377abc"], timeout: 5)
+ok("非 UTF-8 输出不整体丢空（否则 MountScanner 会误判掉线）",
+   badUTF8.out.contains("abc") && badUTF8.out != "\\377abc",
+   "得到 \(badUTF8.out.debugDescription)")
 
 // MARK: - 结果
 

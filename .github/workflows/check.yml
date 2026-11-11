@@ -1,0 +1,21 @@
+name: check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    # 依赖 AppKit / WebKit / networksetup，只能在 macOS runner 上跑
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Static checks + unit tests
+        run: ./scripts/check.sh

@@ -181,12 +181,33 @@ cd NetMount
 
 > 注意：`installer` 不能直接从网络宗卷安装 PKG，先把 pkg 拷到本机磁盘再装。
 
+## 改代码后自检
+
+```bash
+./scripts/check.sh          # 全量检查：提交前 / 打包前跑一次
+./tests/run.sh              # 只跑回归测试
+./scripts/sync-version.sh   # 把 Info.plist 的版本同步进说明书 HTML
+```
+
+`check.sh` 依次做 5 件事：Swift 类型检查、界面 JavaScript 语法、说明书版本号一致性、界面 `call("…")` ↔ 原生 bridge 对照、回归测试。`warning` 只打印不拦（目前只剩 `popUpMenu` 的弃用提示）。项目带 GitHub Actions（`.github/workflows/check.yml`），push / PR 会在 macOS 14 runner 上自动跑同一套检查。
+
+`tests/run.sh` 会先把 `Sources/` 拷到本机磁盘——源码放在 SMB 卷上时 `swiftc` 会因 mtime 抖动报「input file … was modified during the build」——再去掉 App 入口、用 `tests/main.swift` 编译成命令行程序。它不启动 App、不碰钥匙串、不发网络请求、不挂载磁盘：前 6 组是纯函数断言（挂载点白名单、外部配置解码、URL 拼装、脱敏与转义），第 7 组会真实 fork `/bin` 下的无害命令，验证子进程超时回收、管道 fd 不泄漏、200KB stdin 不死锁、超时不回传带密码的 stderr。**共 75 项断言**。
+
+版本号只改 `Resources/Info.plist`，再跑 `./scripts/sync-version.sh` 同步说明书 HTML；`--check` 会拦住说明书里残留的旧产品版本号（不会把 SMB 协议版本 `3.1.1` 误判成产品版本）。
+
 ## 文件结构
 
 ```
 NetMount/
 ├── build.sh                  # 本机编译安装（装到 /Applications）
 ├── package.sh                # 打 DMG / PKG 安装包（通用二进制）
+├── scripts/
+│   ├── check.sh              # 提交前 / 打包前全量检查
+│   └── sync-version.sh       # Info.plist 版本 ↔ 说明书 HTML
+├── tests/
+│   ├── main.swift            # 回归测试（纯逻辑 + Shell 子进程）
+│   └── run.sh                # 编译并运行测试程序
+├── .github/workflows/check.yml  # macOS 14 runner 上的 CI
 ├── Sources/
 │   ├── main.swift            # 入口、窗口、菜单、全局快捷键注册
 │   ├── AppInfo.swift         # 版本号唯一来源（读 Info.plist）
@@ -194,7 +215,7 @@ NetMount/
 │   ├── StatusBarController.swift # 菜单栏图标、右键菜单、左键面板
 │   ├── StatusPopover.swift   # 菜单栏左键弹出的原生状态面板（NSPopover）
 │   ├── HotkeyManager.swift   # 全局快捷键（⌥⌘M/K/U）+ 辅助功能权限
-│   ├── NetworkContext.swift  # 当前 Wi-Fi（SSID）、定位授权、按网络放行
+│   ├── NetworkContext.swift  # 当前 Wi-Fi（SSID，走 networksetup）、按网络放行
 │   ├── WakeOnLAN.swift       # 魔术包唤醒、广播地址计算、ARP 查 MAC
 │   ├── AppSettings.swift      # 开机启动 / 程序坞 / 菜单栏图标 / 快捷键偏好
 │   ├── AppController.swift   # WKWebView 外壳 + 与界面通信 + 配置导入导出
@@ -202,9 +223,11 @@ NetMount/
 │   ├── MountService.swift    # 挂载 / 卸载 / 报错翻译 / 协议诊断
 │   ├── MountWatchdog.swift   # 掉线探测、自动重挂、指数退避、唤醒与换网重连
 │   ├── MountScanner.swift    # 解析系统挂载表、匹配磁盘
+│   ├── MountOps.swift        # 挂载 / 卸载 / 对账统一串行队列
+│   ├── Diagnostics.swift     # 环形内存日志、系统统一日志、脱敏诊断导出
 │   ├── Keychain.swift        # 钥匙串读写密码（Security 框架，进程内）
 │   ├── Models.swift          # 数据结构、主机名/MAC 规范化、容量格式化
-│   └── Shell.swift           # 带超时的命令执行
+│   └── Shell.swift           # 带超时与子进程 / 管道回收的命令执行
 ├── Resources/
 │   ├── ui.html               # 界面（HTML/CSS/JS）
 │   ├── Info.plist
@@ -331,7 +354,6 @@ NETMOUNT_HEADLESS=1 NETMOUNT_FORCE_WATCHDOG=1 NETMOUNT_LOG=1 \
 | 1.4.3 | 修说明书排版：PDF 渲染不再整体缩放（pageZoom 会触发 WebKit 最小字号，把正文抬到 18px、字号层级全毁），改为分批出图；25 页正文全部回到安全线内，另修正被裁切的截图与过时的版本号截图 |
 | 1.4.4 | 修 3 个严重问题：掉线自动重挂只重试一次（核心功能实质失效）、导入配置端口越界导致闪退、WebDAV 挂载链路（`open https://` 只会开浏览器、直连缺账号端口）。另修：主线程 `statfs`/读 SSID 阻塞、钥匙串保存静默失败、同共享名跨服务器误判、探测线程泄漏、挂载点改为白名单、打包脚本吞编译错误。SMB 挂载改走系统认证：凭据不再拼进 URL（-1700）、不再接 `set v to`（-2753），失败信息里的密码一律抹成 `***`。移除「挂载整台服务器」——macOS 的 NetFS 必须知道共享名，这条路径从来没真正工作过。挂载位置改为锁定访达记下的真实路径：不再退到 `~/Volumes`，重挂后位置对不上直接报错，用户在别处配的文件路径不会静默失效。钥匙串改为单条密码库 + 固定签名 DR，重新编译安装后不再反复弹授权框 |
 | 1.4.5 | 安全与可靠性补强：移除「自定义挂载点」的用户态直连——那条路必须把密码拼进命令行参数（同机 `ps` 可见），现在统一挂 `/Volumes/共享名`；错误脱敏覆盖无 scheme 的 `//user:pass@host`；「只读挂载」真实生效（`rdonly` 挂载参数 + 挂载后核对只读标志，未生效即自动卸载）。修看门狗「假重连」（强制卸载失败时把死盘判成重连成功，退避清零、通知每 30 秒循环）、启动自动挂载失败后不再重试、无用户名挂载卷的共享名解析、落点校验对大小写误报、钥匙串并发覆盖丢密码、NFS 提示命令缺前导斜杠 |
-
-| 1.5.0 | 第三轮审查全量落地。**稳定性**：子进程超时强制回收（SIGKILL + `waitUntilExit()` + 关管道，不留僵尸／读线程）、挂载与对账统一串行队列、冷启动删盘真删钥匙串、配置加载校验挂载点、导入按 ID 覆盖时作废旧密码、用户名禁带冒号、看门狗状态随删盘/换网清理、WOL 通知幂等、容量探测去重、局域网发现加代次校验并断开 WKWebView 消息循环引用、主刷新定时器改用 `.common`。**新功能**：WebDAV HTTP/HTTPS 开关、单独清除已存密码、脱敏诊断报告导出（同时写系统统一日志）。**工程化**：文档与实现全面对齐、建立 git 版本库、静态检查与回归验证脚本 |
+| 1.5.0 | 第三轮审查全量落地。**稳定性**：子进程超时强制回收（SIGKILL + `waitUntilExit()` + 关管道，不留僵尸／读线程）、挂载与对账统一串行队列、冷启动删盘真删钥匙串、配置加载校验挂载点、导入按 ID 覆盖时作废旧密码、用户名禁带冒号、看门狗状态随删盘/换网清理、WOL 通知幂等、容量探测去重、局域网发现加代次校验并断开 WKWebView 消息循环引用、主刷新定时器改用 `.common`。**新功能**：WebDAV HTTP/HTTPS 开关、单独清除已存密码、脱敏诊断报告导出（同时写系统统一日志）。**工程化**：文档与实现全面对齐、建立 git 版本库、静态检查脚本与 75 项回归断言、macOS 14 CI |
 
 > 版本号规则：修 bug / 安全 → PATCH（1.4.1 → 1.4.2）；加功能 → MINOR（1.3.0 → 1.4.0）；不兼容大改 → MAJOR。

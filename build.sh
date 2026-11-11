@@ -39,9 +39,12 @@ if [ -f "$SRC/Resources/AppIcon.icns" ]; then
   cp "$SRC/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 fi
 # 内置使用说明书（菜单「帮助 → 使用说明书」读它）
-# 取 docs 下最新的那份：SMB 卷上旧文件被预览器打开时改不了名/覆盖不了，
-# 所以新版会先以带版本号的名字落盘，这里按修改时间挑最新的一份，两边都不用改。
-MANUAL="$(ls -t "$ROOT"/docs/网盘管家使用说明书*.pdf 2>/dev/null | head -1 || true)"
+# 按 Info.plist 的版本号精确取对应那份，别按 mtime 猜（预览器占用旧文件时会挑错）。
+VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$ROOT/Resources/Info.plist")"
+MANUAL="$ROOT/docs/网盘管家使用说明书-$VERSION.pdf"
+if [ ! -f "$MANUAL" ]; then
+  MANUAL="$(ls -t "$ROOT"/docs/网盘管家使用说明书*.pdf 2>/dev/null | head -1 || true)"
+fi
 if [ -n "${MANUAL:-}" ] && [ -f "$MANUAL" ]; then
   cp "$MANUAL" "$APP/Contents/Resources/使用说明书.pdf"
   echo "  使用说明书：$(basename "$MANUAL")"

@@ -1,5 +1,6 @@
 #!/bin/bash
-# 纯逻辑回归测试：不启动 App、不碰钥匙串、不挂载磁盘。
+# 回归测试：不启动 App、不碰钥匙串、不挂载磁盘；
+# 只会真实 fork /bin 下的 echo / sleep / cat / sh / printf 验证子进程回收与管道不死锁。
 # 用法： ./tests/run.sh
 set -euo pipefail
 

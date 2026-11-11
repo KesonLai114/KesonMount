@@ -51,7 +51,7 @@ if missing:
 print(f"   OK：界面 {len(used)} 个 action 全部有原生实现")
 PY
 
-echo "▶ 5/5 纯逻辑单元测试"
+echo "▶ 5/5 单元测试 + Shell 子进程回归"
 ./tests/run.sh
 
 echo ""
