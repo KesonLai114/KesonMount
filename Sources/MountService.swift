@@ -177,37 +177,85 @@ enum MountService {
             return .fail("挂载失败：\(detail)")
 
         case .nfs:
+            // NFS 没有账号密码，走系统挂载器时不需要凭据
             if let r = viaSystemMount(drive, password: nil), case .ok = r { return r }
             // share 在保存时被剥掉了前导斜杠，拼命令时必须补回来：
             // NFS 的导出路径是绝对路径，写成 `nas:volume1/video` 照抄必失败。
             let export = drive.share.hasPrefix("/") ? drive.share : "/" + drive.share
-            // 提示是给用户复制到终端执行的：来自配置的 host / share / 挂载点
-            // 必须做 shell 引号转义，否则伪造配置能诱导执行任意命令。
-            let cmd = "sudo mount -t nfs " + shellQuote("\(drive.host):\(export)") +
-                      " " + shellQuote(drive.resolvedMountPoint)
-            return .fail("NFS 需要管理员权限，请在终端执行：\(cmd)")
+            // 系统挂载器对 NFS 的支持很有限（`mount volume nfs://…` 常常直接不认），
+            // 所以再真正调一次 `mount -t nfs`，用系统授权框提权。
+            // 早先这里只是把命令打印出来让用户自己去终端敲——那等于这个功能没做完。
+            if let r = viaPrivilegedNFSMount(drive, export: export) { return r }
+            let manual = nfsMountCommand(host: drive.host, export: export,
+                                         mountPoint: drive.resolvedMountPoint)
+            return .fail("NFS 需要管理员权限，请在终端执行：\(manual)")
         }
+    }
+
+    /// NFS 挂载命令（终端版）。来自配置的 host / 导出路径 / 挂载点
+    /// 必须做 shell 引号转义，否则一份伪造的配置文件就能诱导执行任意命令。
+    static func nfsMountCommand(host: String, export: String, mountPoint: String) -> String {
+        "sudo mount -t nfs " + shellQuote("\(host):\(export)") + " " + shellQuote(mountPoint)
+    }
+
+    /// 用系统授权框真正把 NFS 挂上。
+    ///
+    /// 返回 nil 表示前置条件不满足、根本没发起提权（调用方会退回「请自己执行命令」的提示）。
+    /// NFS 本身不需要密码，提权只是为了 `mount` 这个动作——不会把任何凭据交给命令行。
+    private static func viaPrivilegedNFSMount(_ drive: Drive, export: String) -> OpResult? {
+        let mp = drive.resolvedMountPoint
+        guard mp.hasPrefix("/Volumes/") else { return nil }
+        // 先建目录：mount_nfs 要求挂载点已存在，而 /Volumes/<名> 未必存在
+        let inner = "/bin/mkdir -p " + shellQuote(mp)
+            + " && /sbin/mount -t nfs " + shellQuote("\(drive.host):\(export)")
+            + " " + shellQuote(mp)
+        // 内层是 shell 命令，外层是 AppleScript 字符串，两层都要转义
+        let script = "do shell script \"\(appleScriptQuote(inner))\" with administrator privileges"
+        let r = Shell.run("/usr/bin/osascript", ["-"], timeout: 90, input: script)
+        if r.ok {
+            if let v = waitForMount(drive: drive, timeout: 10) { return .ok("已挂载到 \(v.path)") }
+            return .ok("已挂载")
+        }
+        let msg = r.message
+        if msg.contains("-128") || msg.lowercased().contains("user canceled") {
+            return .fail("已取消管理员授权，NFS 没有挂载")
+        }
+        return .fail("NFS 挂载失败：\(friendly(msg))")
     }
 
     // MARK: 卸载
 
     /// - Parameter force: 强制卸载。掉线的挂载点普通卸载会一直转圈（Device busy），
     ///   只有 `diskutil unmount force` / `umount -f` 能把它摘掉，重挂前必须先走这条。
-    static func unmount(_ volume: MountedVolume, force: Bool = false) -> OpResult {
+    /// - Parameter privileged: 允许弹管理员授权框。只有用户主动点「卸载」时才传 true——
+    ///   看门狗在后台自动重连时绝不能弹框，那比卸不掉更吓人。
+    static func unmount(_ volume: MountedVolume, force: Bool = false,
+                        privileged: Bool = false) -> OpResult {
         if force {
             let f = Shell.run("/usr/sbin/diskutil", ["unmount", "force", volume.path], timeout: 25)
-            if f.ok { return .ok("已卸载「\(volume.shareName)」") }
+            if f.ok { return unmounted(volume) }
         }
 
         let d = Shell.run("/usr/sbin/diskutil", ["unmount", volume.path], timeout: 25)
-        if d.ok { return .ok("已卸载「\(volume.shareName)」") }
+        if d.ok { return unmounted(volume) }
 
         let u = Shell.run("/sbin/umount", [volume.path], timeout: 25)
-        if u.ok { return .ok("已卸载「\(volume.shareName)」") }
+        if u.ok { return unmounted(volume) }
 
         if force {
             let f = Shell.run("/sbin/umount", ["-f", volume.path], timeout: 25)
-            if f.ok { return .ok("已卸载「\(volume.shareName)」") }
+            if f.ok { return unmounted(volume) }
+        }
+
+        // NFS 由 root 挂上去的卷普通用户卸不掉，只能提权。同样只在用户主动卸载时问。
+        if privileged, volume.fsType == "nfs" {
+            let script = "do shell script \"/sbin/umount "
+                + appleScriptQuote(shellQuote(volume.path)) + "\" with administrator privileges"
+            let p = Shell.run("/usr/bin/osascript", ["-"], timeout: 60, input: script)
+            if p.ok { return unmounted(volume) }
+            if p.message.contains("-128") || p.message.lowercased().contains("user canceled") {
+                return .fail("已取消管理员授权，磁盘仍挂载着")
+            }
         }
 
         let msg = u.message.isEmpty ? d.message : u.message
@@ -215,6 +263,14 @@ enum MountService {
             return .fail("磁盘正在被使用，请先关闭正在读写该磁盘的程序再试")
         }
         return .fail("卸载失败：\(msg.isEmpty ? "未知原因" : msg)")
+    }
+
+    /// 卸载成功后的统一收尾：顺手清掉这条路径的健康探测记录。
+    /// 不清的话，重新挂到同一位置的卷会继承「上一辈子」那条卡死的探测，
+    /// 被永远判成失去响应。
+    private static func unmounted(_ volume: MountedVolume) -> OpResult {
+        MountHealth.forget(volume.path)
+        return .ok("已卸载「\(volume.shareName)」")
     }
 
     // MARK: 方式一：交给系统挂载器（NetFS）挂载——和访达里手动连接是同一条路

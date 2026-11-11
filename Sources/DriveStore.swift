@@ -15,6 +15,8 @@ final class DriveStore {
     private var didSeed = false
     private var toastToken = 0
     private var passwordCache: [UUID: Bool] = [:]
+    /// 正在后台查「有没有存密码」的盘，避免重复排队
+    private var passwordPending: Set<UUID> = []
     private var systemCredCache: [String: Bool] = [:]
     /// 正在后台查的 host，避免重复排队
     private var credPending: Set<String> = []
@@ -38,12 +40,40 @@ final class DriveStore {
     /// 配置文件解码失败时的备份文件名（启动后提示用户）
     private var configLoadFailed: String?
 
-    /// 是否已保存密码（带缓存，避免每次刷新都去问钥匙串）
+    /// 是否已保存密码。
+    ///
+    /// **只读缓存，绝不在调用线程上碰钥匙串**：`SecItemCopyMatching` 在钥匙串被锁、
+    /// 或用户第一次授权时会一直阻塞到有人点掉那个系统对话框——而这个方法会被
+    /// `snapshot()` 在主线程每几秒调一次，一卡就是整个界面冻住。
+    /// 没缓存时先按「没有」返回，后台查完再 notify 一次刷新界面。
     func hasPassword(_ drive: Drive) -> Bool {
         if let cached = passwordCache[drive.id] { return cached }
-        let value = Keychain.hasPassword(for: drive)
-        passwordCache[drive.id] = value
-        return value
+        warmPasswordState(for: drive)
+        return false
+    }
+
+    /// 后台查「这块盘有没有存过密码」，结果进缓存
+    private func warmPasswordState(for drive: Drive) {
+        guard !passwordPending.contains(drive.id) else { return }
+        passwordPending.insert(drive.id)
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let has = Keychain.hasPassword(for: drive)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.passwordPending.remove(drive.id)
+                if self.passwordCache[drive.id] != has {
+                    self.passwordCache[drive.id] = has
+                    self.notify()
+                }
+            }
+        }
+    }
+
+    /// 让缓存失效并在后台重新查一次。
+    /// 挂载过程可能刚从系统钥匙串继承了密码，缓存里的「没有」已经不准了。
+    private func invalidatePasswordCache(for drive: Drive) {
+        passwordCache[drive.id] = nil
+        warmPasswordState(for: drive)
     }
 
     /// 凭据来源：saved（网盘管家存的）/ system（系统里存过，可直接沿用）/ none
@@ -100,6 +130,9 @@ final class DriveStore {
 
     init() {
         watchdog.store = self
+        // 通知里的「立即重连」按钮要有人接：必须尽早挂上委托，
+        // 否则用户点按钮时系统找不到处理者，点了等于没点。
+        NotificationRouter.shared.install(store: self)
         // SSID 要提前在后台读：1.2 秒后 autoMountOnLaunch 就要用它判断能不能挂。
         // 现在 currentSSID 只读缓存，启动时不预热就永远是 nil（= 放行）。
         NetworkContext.refreshAsync(force: true)
@@ -449,7 +482,11 @@ final class DriveStore {
         if let password, !password.isEmpty {
             passwordSaveFailed = !Keychain.save(password: password, for: drive)
             // 没写进去就别缓存「有密码」——否则界面会给出错误判断
-            passwordCache[drive.id] = passwordSaveFailed ? nil : true
+            if passwordSaveFailed {
+                invalidatePasswordCache(for: drive)
+            } else {
+                passwordCache[drive.id] = true
+            }
         }
         // 手动加回来的，就别再拦着自动导入了
         let key = ignoreKey(host: drive.host, share: drive.share)
@@ -548,7 +585,7 @@ final class DriveStore {
                 switch result {
                 case .ok(let message):
                     // 挂载过程中可能刚从系统钥匙串继承了密码，让缓存重新查一次
-                    self.passwordCache[drive.id] = nil
+                    self.invalidatePasswordCache(for: drive)
                     self.systemCredCache[drive.host] = nil
                     // 记下来：这次是网盘管家自己挂的
                     self.appMounted.insert(drive.id)
@@ -594,7 +631,9 @@ final class DriveStore {
         notify()
 
         MountOps.run {
-            let result = MountService.unmount(v)
+            // privileged: 用户主动点的卸载，NFS 这类 root 挂的卷可以弹一次授权框；
+            // 看门狗自动重连那条路径不传，后台绝不弹框。
+            let result = MountService.unmount(v, privileged: true)
             DispatchQueue.main.async {
                 self.busy.remove(drive.id)
                 switch result {
@@ -843,7 +882,7 @@ final class DriveStore {
                 self.busy.remove(drive.id)
                 switch result {
                 case .ok(let message):
-                    self.passwordCache[drive.id] = nil
+                    self.invalidatePasswordCache(for: drive)
                     self.systemCredCache[drive.host] = nil
                     self.appMounted.insert(drive.id)
                     self.show("\(reason)，已重新连接（\(message)）")

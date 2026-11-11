@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
@@ -69,6 +70,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // 全局快捷键：在别的 App 里也能一键挂载 / 卸载 / 唤出窗口
         setupHotkeys()
+
+        // netmount:// 深链接（快捷指令、脚本、Raycast 之类调进来）
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleGetURL(_:withReply:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
 
         // 自检：打印菜单栏图标菜单结构后退出
         if ProcessInfo.processInfo.environment["NETMOUNT_DUMP_STATUSBAR"] == "1" {
@@ -182,6 +191,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    // MARK: - 深链接
+
+    /// `open "netmount://mountAll"` 之类的入口。
+    /// 事件来自任意 App，一律先回主线程再动状态。
+    @objc private func handleGetURL(_ event: NSAppleEventDescriptor,
+                                    withReply reply: NSAppleEventDescriptor) {
+        guard let raw = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.run(deepLink: raw)
+        }
+    }
+
+    /// 解析并执行一条深链接。认不出来的什么都不做——外部输入不猜。
+    func run(deepLink raw: String) {
+        guard let command = DeepLink.parse(raw) else {
+            Diagnostics.log("深链接：认不出 \(raw)，已忽略")
+            return
+        }
+        Diagnostics.log("深链接：执行 \(command)")
+        let store = controller.store
+        switch command {
+        case .show:
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        case .refresh:
+            controller.refreshNow()
+        case .mountAll:
+            store.mountAll()
+        case .unmountAll:
+            store.unmountAll()
+        case .mount(let id):
+            guard let drive = store.drive(id: id) else { return }
+            store.mount(drive)
+        case .unmount(let id):
+            guard let drive = store.drive(id: id) else { return }
+            store.unmount(drive)
+        case .reconnect(let id):
+            guard let drive = store.drive(id: id) else { return }
+            store.reconnectNow(drive)
         }
     }
 

@@ -104,9 +104,10 @@ final class AppController: NSObject, WKScriptMessageHandler {
         // 拖拽窗口或弹窗处于事件跟踪模式时 RunLoop 会停掉刷新，状态看起来像卡死。
         // 这里不用 scheduledTimer，避免同一个 timer 同时挂两个 mode。
         let t = Timer(timeInterval: 4, repeats: true) { [weak self] _ in
+            guard let self else { return }
             // SSID 在后台刷新（10 秒节流），snapshot 只读缓存，不会卡主线程
             NetworkContext.refreshAsync()
-            self?.store.refresh()
+            self.tick()
         }
         ticker = t
         RunLoop.main.add(t, forMode: .common)
@@ -183,6 +184,33 @@ final class AppController: NSObject, WKScriptMessageHandler {
                 NSApp.terminate(nil)
             }
         }
+    }
+
+    // MARK: - 主循环节奏
+
+    /// 界面是否真的在屏幕上（没被最小化、没被藏到菜单栏后面）
+    private var uiVisible: Bool {
+        guard let window = webView.window else { return false }
+        return window.isVisible && !window.isMiniaturized
+    }
+
+    private var tickCount = 0
+    private var wasVisible = false
+
+    /// 4 秒一跳。
+    ///
+    /// 窗口在屏幕上才值得每 4 秒刷一次；藏到菜单栏之后没必要——每次刷新都要重新
+    /// 读一遍挂载表、再序列化一份状态推给 WebView，一天下来是两万多次无谓开销，
+    /// 笔记本上还多一份唤醒。不可见时降到 30 秒一次（看门狗本来就是这节奏），
+    /// 重新显示的那一刻立刻补一次，不会让用户看到旧数据。
+    private func tick() {
+        tickCount &+= 1
+        let visible = uiVisible
+        let justAppeared = visible && !wasVisible
+        wasVisible = visible
+        guard visible || tickCount % 8 == 0 else { return }
+        store.refresh()
+        if justAppeared { pushState() }
     }
 
     func refreshNow() {

@@ -12,23 +12,40 @@ import UserNotifications
 enum MountHealth {
 
     private static let lock = NSLock()
-    /// 正在探测、还没返回的路径。
+    /// 正在探测、还没返回的路径（值里带一个 token 和开始时间）。
     ///
     /// 假死的挂载点会把「读目录」卡在内核里很久，而这次读取是没法取消的。
     /// 不记下来，下一轮又会给它新派一个线程，假死一整晚就是几十个
     /// 永久阻塞的线程，最后把全局队列占满。现在同一个 path 最多一个在飞。
-    private static var inFlight: Set<String> = []
+    ///
+    /// token 是给「这一轮」用的：读完之后只删自己那一轮的记录，
+    /// 不会误删后来者（重新挂载后新派的那次探测）。
+    private static var inFlight: [String: (token: UUID, started: Date)] = [:]
+
+    /// 一次读取最多算它「还在飞」多久：超过 3 倍超时仍未返回，就认为那次探测
+    /// 已经彻底卡死，允许重新派一次。
+    ///
+    /// 这条兜底是必需的：早期版本超时后不清记录，一块盘只要有过一次永久卡住的读取，
+    /// 它所在的路径就被永久判成「不健康」——重新挂载后落在同一个 `/Volumes/<共享名>`，
+    /// 下一轮又被判死，于是每 5 分钟重挂一次，永远停不下来。
+    private static func staleThreshold(_ timeout: TimeInterval) -> TimeInterval {
+        max(15, timeout * 3)
+    }
 
     static func isHealthy(_ path: String, timeout: TimeInterval = 5) -> Bool {
         guard !path.isEmpty else { return false }
+        let token = UUID()
 
         lock.lock()
-        if inFlight.contains(path) {
-            // 上一轮那次读还卡在那里：直接当它不健康，不再派新线程
-            lock.unlock()
-            return false
+        if let running = inFlight[path] {
+            // 还在合理时间内：当作「这次探测没结论」，直接判不健康，不再派新线程
+            if Date().timeIntervalSince(running.started) < staleThreshold(timeout) {
+                lock.unlock()
+                return false
+            }
+            // 卡太久了：那次读取基本已经废了，这次重派一个（最多多一个线程）
         }
-        inFlight.insert(path)
+        inFlight[path] = (token, Date())
         lock.unlock()
 
         let sem = DispatchSemaphore(value: 0)
@@ -36,13 +53,24 @@ enum MountHealth {
         DispatchQueue.global(qos: .utility).async {
             ok = (try? FileManager.default.contentsOfDirectory(atPath: path)) != nil
             lock.lock()
-            inFlight.remove(path)
+            if inFlight[path]?.token == token { inFlight.removeValue(forKey: path) }
             lock.unlock()
             sem.signal()
         }
         // 掉线的挂载点会把这次读取卡住，超时就当它不健康
         if sem.wait(timeout: .now() + timeout) == .timedOut { return false }
         return ok
+    }
+
+    /// 卸载 / 重挂之后清掉这条路径的探测记录。
+    ///
+    /// 卷被摘掉时那次卡住的读取理应跟着返回，但内核不保证立刻返回；
+    /// 不清掉的话，同一位置重新挂上来的卷会继承「上一辈子」的坏记录。
+    static func forget(_ path: String) {
+        guard !path.isEmpty else { return }
+        lock.lock()
+        inFlight.removeValue(forKey: path)
+        lock.unlock()
     }
 }
 
@@ -353,7 +381,7 @@ final class MountWatchdog {
         notifiedDown.insert(drive.id)
         log("「\(drive.name)」\(message)")
         store?.noteWatchdog(drive, message: message)
-        Self.notify(title: "「\(drive.name)」掉线了", body: MountService.redact(message))
+        Self.notify(title: "「\(drive.name)」掉线了", body: MountService.redact(message), drive: drive)
     }
 
     // MARK: - 重挂
@@ -443,18 +471,19 @@ final class MountWatchdog {
 
     /// 发一条系统通知。做成 static：挂载层（MountService）需要它，
     /// 但那里拿不到 DriveStore 手上的 watchdog 实例。
-    static func notify(title: String, body: String) {
+    /// - Parameter drive: 传了就把通知挂上「立即重连」按钮，用户不用再翻回窗口。
+    static func notify(title: String, body: String, drive: Drive? = nil) {
         guard AppSettings.shared.notifyEvents else { return }
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             switch settings.authorizationStatus {
             case .authorized, .provisional:
-                MountWatchdog.post(title: title, body: body)
+                MountWatchdog.post(title: title, body: body, driveID: drive?.id)
             case .notDetermined:
                 guard !askedAuth else { return }
                 askedAuth = true
                 center.requestAuthorization(options: [.alert, .sound]) { ok, _ in
-                    if ok { MountWatchdog.post(title: title, body: body) }
+                    if ok { MountWatchdog.post(title: title, body: body, driveID: drive?.id) }
                 }
             default:
                 // 用户关掉了通知：界面上的 toast 一样能看到，不打扰他
@@ -470,7 +499,7 @@ final class MountWatchdog {
         wakeLock.unlock()
         guard fresh else { return }
         Diagnostics.log("「\(drive.name)」发送网络唤醒包")
-        notify(title: title, body: body)
+        notify(title: title, body: body, drive: drive)
     }
 
     static func clearWakeNotification(_ id: UUID) {
@@ -479,14 +508,71 @@ final class MountWatchdog {
         wakeLock.unlock()
     }
 
-    private static func post(title: String, body: String) {
+    private static func post(title: String, body: String, driveID: UUID?) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = MountService.redact(body)
         content.sound = .default
+        if let driveID {
+            // 挂上分类，通知上才会出现「立即重连」按钮
+            content.categoryIdentifier = NotificationRouter.category
+            content.userInfo = [NotificationRouter.driveKey: driveID.uuidString]
+        }
         let request = UNNotificationRequest(
             identifier: UUID().uuidString, content: content, trigger: nil
         )
         UNUserNotificationCenter.current().add(request)
+    }
+}
+
+// MARK: - 通知上的操作按钮
+
+/// 掉线通知里的「立即重连」。
+///
+/// 没有它的话，用户收到「极空间HD 掉线了」只能自己去点菜单栏图标、找到那块盘、
+/// 再点重连——三步操作，而且盘多的时候还得先找。加上按钮就是一次点击。
+final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
+
+    static let shared = NotificationRouter()
+
+    /// 通知分类标识（Info.plist 里不用声明，运行时注册即可）
+    static let category = "netmount.driveDown"
+    static let reconnectAction = "netmount.reconnect"
+    /// userInfo 里放磁盘 id 的键
+    static let driveKey = "drive"
+
+    weak var store: DriveStore?
+
+    /// 注册分类并把自己挂成委托。必须在 App 启动早期调用，
+    /// 否则用户点按钮时系统找不到处理者。
+    func install(store: DriveStore) {
+        self.store = store
+        let reconnect = UNNotificationAction(
+            identifier: Self.reconnectAction,
+            title: "立即重连",
+            options: []          // 不抢前台：重连是后台动作，没必要把窗口拽出来
+        )
+        let category = UNNotificationCategory(
+            identifier: Self.category,
+            actions: [reconnect],
+            intentIdentifiers: [],
+            options: []
+        )
+        let center = UNUserNotificationCenter.current()
+        center.setNotificationCategories([category])
+        center.delegate = self
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        defer { completionHandler() }
+        guard response.actionIdentifier == Self.reconnectAction,
+              let raw = response.notification.request.content.userInfo[Self.driveKey] as? String,
+              let id = UUID(uuidString: raw) else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let store = self?.store, let drive = store.drive(id: id) else { return }
+            store.reconnectNow(drive)
+        }
     }
 }

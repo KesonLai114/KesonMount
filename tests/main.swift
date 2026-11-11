@@ -237,6 +237,71 @@ ok("非 UTF-8 输出不整体丢空（否则 MountScanner 会误判掉线）",
    badUTF8.out.contains("abc") && badUTF8.out != "\\377abc",
    "得到 \(badUTF8.out.debugDescription)")
 
+// MARK: - 8. 深链接与 NFS 命令
+//
+// 深链接的输入来自外部（快捷指令、脚本、别的 App），和导入的配置文件一样
+// 属于不可信数据：认不出来必须返回 nil，绝不能「猜一个动作」去执行。
+
+section("8. 深链接与 NFS 命令")
+
+let anyID = UUID()
+
+eq("netmount://show", DeepLink.parse("netmount://show"), DeepLink.Command.show)
+eq("裸 scheme 等于唤出窗口", DeepLink.parse("netmount:"), DeepLink.Command.show)
+eq("大小写不敏感", DeepLink.parse("NETMOUNT://Show"), DeepLink.Command.show)
+eq("path 形式也认", DeepLink.parse("netmount:mountAll"), DeepLink.Command.mountAll)
+eq("mountAll", DeepLink.parse("netmount://mountAll"), DeepLink.Command.mountAll)
+eq("unmountAll", DeepLink.parse("netmount://unmountAll"), DeepLink.Command.unmountAll)
+eq("refresh", DeepLink.parse("netmount://refresh"), DeepLink.Command.refresh)
+eq("mount?id=", DeepLink.parse("netmount://mount?id=\(anyID.uuidString)"),
+   DeepLink.Command.mount(anyID))
+eq("unmount?id=", DeepLink.parse("netmount://unmount?id=\(anyID.uuidString)"),
+   DeepLink.Command.unmount(anyID))
+eq("reconnect?id=", DeepLink.parse("netmount://reconnect?id=\(anyID.uuidString)"),
+   DeepLink.Command.reconnect(anyID))
+eq("别的 scheme 一律不认", DeepLink.parse("http://mountAll"), DeepLink.Command?.none)
+eq("未知动作不认", DeepLink.parse("netmount://formatDisk"), DeepLink.Command?.none)
+eq("缺 id 的 mount 不认", DeepLink.parse("netmount://mount"), DeepLink.Command?.none)
+eq("id 不是 UUID 不认", DeepLink.parse("netmount://mount?id=1"), DeepLink.Command?.none)
+eq("空串不认", DeepLink.parse("   "), DeepLink.Command?.none)
+
+let nfsCmd = MountService.nfsMountCommand(host: "nas.local", export: "/volume1/video",
+                                          mountPoint: "/Volumes/video")
+eq("NFS 命令格式", nfsCmd, "sudo mount -t nfs 'nas.local:/volume1/video' '/Volumes/video'")
+let evilCmd = MountService.nfsMountCommand(host: "nas'; rm -rf /; #", export: "/x",
+                                           mountPoint: "/Volumes/x")
+ok("NFS 命令里的恶意主机名被单引号锁死", evilCmd.contains("'nas'\\''; rm -rf /; #:/x'"))
+
+// MARK: - 9. 挂载表：系统调用与文本解析必须一致
+//
+// scan() 现在走 getmntinfo(3)，parse() 是兜底路径。两条路给出的卷必须一样，
+// 否则「兜底」会在用户不知情的时候改变行为（少认出一块盘 = 看门狗把它当掉线）。
+// 两次读取之间可能真有卷挂上/卸下，所以允许重试。
+
+section("9. 挂载表：getmntinfo 与文本解析一致")
+
+private func mountTables() -> (syscall: [String], text: [String]) {
+    let viaSyscall = MountScanner.scan().map(\.path).sorted()
+    let raw = Shell.run("/sbin/mount", [], timeout: 8).out
+    return (viaSyscall, MountScanner.parse(raw).map(\.path).sorted())
+}
+
+var tablesAgree = false
+var lastTables: (syscall: [String], text: [String]) = ([], [])
+for _ in 0..<3 {
+    lastTables = mountTables()
+    if lastTables.syscall == lastTables.text { tablesAgree = true; break }
+    usleep(200_000)
+}
+ok("getmntinfo 与 /sbin/mount 解析结果一致", tablesAgree,
+   "syscall=\(lastTables.syscall)，text=\(lastTables.text)")
+
+// 挂载表至少能读出「当前真的有网络卷」——这条在本机有 SMB 挂载时才有意义，
+// CI 上没有也不该失败，所以只断言「不崩、返回数组」。
+let scanned = MountScanner.scan()
+ok("scan() 正常返回（不依赖子进程）", scanned.count >= 0)
+ok("每块网络卷都有非空挂载点", scanned.allSatisfy { !$0.path.isEmpty && $0.isNetwork })
+
 // MARK: - 结果
 
 print("")

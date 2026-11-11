@@ -112,6 +112,9 @@ final class StatusBarController: NSObject {
         if pop.isShown {
             pop.performClose(sender)
         } else if let button = statusItem?.button {
+            // 主窗口藏着的时候后台刷新只有 30 秒一次的慢节奏，
+            // 面板一打开就得先把状态拉新，不然第一眼看到的是半分钟前的旧数据
+            store?.refresh()
             pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popoverVC?.startRefresh()
         }

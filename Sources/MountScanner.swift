@@ -1,12 +1,58 @@
+import Darwin
 import Foundation
 
 /// 解析系统挂载表，找出所有网络磁盘
 enum MountScanner {
 
+    /// 读当前挂载表。
+    ///
+    /// 优先走 `getmntinfo(3)` 系统调用，而不是 fork 一个 `/sbin/mount`：
+    ///   - 零子进程。界面每 4 秒、看门狗每 30 秒各要一份，一天下来是几万次 fork，
+    ///     而这条路径只要一次内核调用。
+    ///   - 零文本解析。`/sbin/mount` 的输出是给人看的，靠 `" on "` 切分——
+    ///     共享名里带 ` on `（`My Passport on NAS`）就会切错，整块盘凭空消失。
+    ///   - `MNT_NOWAIT`：只取缓存的挂载信息，不会像 `MNT_WAIT` 那样被失去响应的
+    ///     网络卷拖住（那正是假死盘最容易踩的坑）。
+    ///
+    /// `parse` 保留为兜底：`getmntinfo` 出错时（极罕见）还能退回子进程那条路。
     static func scan() -> [MountedVolume] {
+        if let volumes = scanViaSyscall() { return volumes }
         let result = Shell.run("/sbin/mount", [], timeout: 8)
         guard result.ok else { return [] }
         return parse(result.out)
+    }
+
+    /// 系统调用版本。返回 nil 表示这次调用失败，交给 `parse` 兜底。
+    private static func scanViaSyscall() -> [MountedVolume]? {
+        var buffer: UnsafeMutablePointer<statfs>?
+        let count = getmntinfo(&buffer, MNT_NOWAIT)
+        guard count > 0, let buffer else { return nil }
+
+        var volumes: [MountedVolume] = []
+        volumes.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            var info = buffer[i]
+            let path = cString(&info.f_mntonname)
+            guard !path.isEmpty else { continue }
+            let fsType = cString(&info.f_fstypename).lowercased()
+            let sourceRaw = cString(&info.f_mntfromname)
+            // 和 parse 保持一致：先百分号解码，再抹掉可能残留的密码
+            // （老版本用户态挂载会把 //user:pass@host 留在挂载表里）。
+            let decoded = MountService.redact(sourceRaw.removingPercentEncoding ?? sourceRaw)
+            let volume = MountedVolume(source: decoded, path: path, fsType: fsType, owner: "")
+            if volume.isNetwork { volumes.append(volume) }
+        }
+        return volumes
+    }
+
+    /// statfs 里的 `f_mntfromname` 之类是定长 C 字符数组（Swift 里是 CChar 元组），
+    /// 没有直接转 String 的 API，只能借指针按 C 字符串读。
+    private static func cString<T>(_ value: inout T) -> String {
+        withUnsafePointer(to: &value) { raw in
+            raw.withMemoryRebound(to: CChar.self, capacity: MemoryLayout<T>.size) {
+                String(cString: $0)
+            }
+        }
     }
 
     static func parse(_ text: String) -> [MountedVolume] {

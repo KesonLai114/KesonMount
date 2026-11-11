@@ -25,6 +25,11 @@ enum Diagnostics {
         if lines.count > limit { lines.removeFirst(lines.count - limit) }
         lock.unlock()
         logger.info("\(safe, privacy: .private)")
+        // NETMOUNT_LOG=1 时也打到标准错误：在终端里直接跑二进制排查时，
+        // 不必再去翻「控制台」，一行命令就能看到全部决策记录。
+        if ProcessInfo.processInfo.environment["NETMOUNT_LOG"] == "1" {
+            FileHandle.standardError.write("[诊断] \(safe)\n".data(using: .utf8)!)
+        }
     }
 
     /// 导出用文本：含版本、系统版本、脱敏后的配置摘要和最近日志。
