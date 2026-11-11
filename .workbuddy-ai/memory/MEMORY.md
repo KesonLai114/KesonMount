@@ -4,7 +4,7 @@
 - **Wi-Fi SSID 读取**：macOS 14+ 下 CoreWLAN `ssid()` 需要 `com.apple.developer.networking.wifi-info` 授权（正式开发者签名才有，ad-hoc 签名拿不到）。本 App 走 ad-hoc 签名（`build.sh` 用 `codesign -s -`，无 entitlements），故改用 `networksetup -getairportnetwork` 读 SSID，不依赖定位权限/entitlement。**不要改回 CoreWLAN**，除非改为正式签名并加该 entitlement。
 - 定位权限（CoreLocation）相关代码已于 2026-10-28 全部移除。
 - **不支持服务器根（整台 NAS）挂载**：macOS NetFS 必须知道共享名才挂得出卷，`smb://host/` 从来挂不出可用卷；1.4.4 起移除该路径，当前源码已无 `serverRoot` 分支，`DriveStore.init()` 会清掉老配置里 `share.isEmpty` 的非 NFS 盘。README / 说明书都已统一为此结论。**旧记忆里「整盘卷名 = host 字面量、只用裸 Bonjour 名」是 1.4.4 之前的实现，已作废。** 挂载点固定 `/Volumes/<共享名>`，界面只读展示。
-- **版本号唯一来源是 `Resources/Info.plist`**（当前 1.5.0 / 构建 12）；改完跑 `./scripts/sync-version.sh` 同步说明书 HTML。
+- **版本号唯一来源是 `Resources/Info.plist`**（当前 1.6.0 / 构建 13）；改完跑 `./scripts/sync-version.sh` 同步说明书 HTML，再重新生成 PDF。
 
 ## 待办 / 已知缺陷
 
@@ -15,6 +15,16 @@
 - 其余落地：Shell 超时强制回收（SIGKILL + `waitUntilExit()` + 关管道）、`MountOps` 串行队列统一挂载/卸载/对账、Keychain 冷启动删盘真删密码、`Diagnostics` 环形日志 + OSLog + 脱敏诊断导出、看门狗状态 prune/换网清理/WOL 幂等、容量 inFlight 去重、局域网发现代次校验、WKWebView 弱引用消息代理、主 ticker `.common`、`NetworkContext` Wi-Fi 接口缓存、文档与实现全面对齐。
 - 工程化：git 版本库 + `scripts/check.sh`（5 步）+ `scripts/sync-version.sh` + `tests/main.swift`（75 项断言）+ `.github/workflows/check.yml`（macos-14）；`build.sh`/`package.sh` 按 Info.plist 版本精确取说明书 PDF；删除 `tmpx/_check.swift`。
 - 回归测试第 7 组真实 fork /bin 命令验证超时回收、fd 不泄漏、200KB stdin 不死锁、超时不回传带密码 stderr；做过退化版负向验证（3 项断言如期失败），不是假通过。
+
+### 1.6.0 已完成（2026-11-11，已构建 + 安装 + 提交，tag `v1.6.0` → `d65e576`）
+- 挂载表改 `getmntinfo(3)`（`MNT_NOWAIT`），不再每 4 秒 fork `/sbin/mount`；`parse()` 留作兜底。**别改回 fork**：`" on "` 文本切分遇到含 ` on ` 的共享名会切错。
+- 主 ticker 按窗口可见性 4 秒 / 30 秒；菜单栏面板打开前主动 `store.refresh()`。
+- `hasPassword` 改缓存 + 后台预热，主线程不再读钥匙串。
+- `MountHealth.inFlight` 改带 token + 过期（`max(15, 3×timeout)`）+ `forget(path)`，修「一次卡死读取让该路径永久判死、每 5 分钟无谓重挂」。
+- NFS 走 `osascript … with administrator privileges` 真挂载；卸载 `privileged:` 只在用户主动点时为 true（看门狗绝不弹框）。
+- 新增 `Sources/DeepLink.swift`（`netmount://`）+ Info.plist `CFBundleURLTypes`；`NotificationRouter` 给掉线通知加「立即重连」。
+- 回归断言 95 项；说明书 1.6.0（25 页）。
+- **本轮未做**：`./package.sh` 出 DMG/PKG；`popUpMenu` deprecation。
 
 ### 1.4.5 已修复（2026-10-29，已构建 + 打包）
 - **自定义挂载点直连已删除**：`viaDirectMount` 会把 `user:pass@` 拼进 `mount_smbfs` / `mount_webdav` 的 argv（同机 `ps` 可见），兜底 `redact` 又只认 `://`。现在只走系统挂载器，统一挂 `/Volumes/<共享名>`；`performMount` 对非 `/Volumes/` 挂载点直接报错，`isSafeMountPoint` 不再放行 `~/Volumes`。
