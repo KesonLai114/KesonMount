@@ -4,6 +4,11 @@
 
 # 网盘管家（NetMount）
 
+[![CI](https://github.com/KesonLai114/NetMount/actions/workflows/check.yml/badge.svg)](https://github.com/KesonLai114/NetMount/actions/workflows/check.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+**简体中文** | [English](README.en.md)
+
 一个 macOS 原生小应用，把「极空间」等网络硬盘集中管理：图形界面看容量、一键挂载 / 卸载、随时添加新的网络硬盘。
 
 ![主界面](docs/预览-主界面.png)
@@ -210,7 +215,7 @@ cd NetMount
 
 `check.sh` 依次做 5 件事：Swift 类型检查、界面 JavaScript 语法、说明书版本号一致性、界面 `call("…")` ↔ 原生 bridge 对照、回归测试。`warning` 只打印不拦（目前只剩 `popUpMenu` 的弃用提示）。项目带 GitHub Actions（`.github/workflows/check.yml`），push / PR 会在 macOS 14 runner 上自动跑同一套检查。
 
-`tests/run.sh` 会先把 `Sources/` 拷到本机磁盘——源码放在 SMB 卷上时 `swiftc` 会因 mtime 抖动报「input file … was modified during the build」——再去掉 App 入口、用 `tests/main.swift` 编译成命令行程序。它不启动 App、不碰钥匙串、不发网络请求、不挂载磁盘：前 6 组是纯函数断言（挂载点白名单、外部配置解码、URL 拼装、脱敏与转义），第 7 组会真实 fork `/bin` 下的无害命令，验证子进程超时回收、管道 fd 不泄漏、200KB stdin 不死锁、超时不回传带密码的 stderr。**共 75 项断言**。
+`tests/run.sh` 会先把 `Sources/` 拷到本机磁盘——源码放在 SMB 卷上时 `swiftc` 会因 mtime 抖动报「input file … was modified during the build」——再去掉 App 入口、用 `tests/main.swift` 编译成命令行程序。它不启动 App、不碰钥匙串、不发网络请求、不挂载磁盘：前 6 组是纯函数断言（挂载点白名单、外部配置解码、URL 拼装、脱敏与转义），第 7 组会真实 fork `/bin` 下的无害命令，验证子进程超时回收、管道 fd 不泄漏、200KB stdin 不死锁、超时不回传带密码的 stderr。**共 95 项断言**。
 
 版本号只改 `Resources/Info.plist`，再跑 `./scripts/sync-version.sh` 同步说明书 HTML；`--check` 会拦住说明书里残留的旧产品版本号（不会把 SMB 协议版本 `3.1.1` 误判成产品版本）。
 
@@ -358,6 +363,41 @@ NETMOUNT_HEADLESS=1 NETMOUNT_FORCE_WATCHDOG=1 NETMOUNT_LOG=1 \
 
 想让整个应用固定待在某个桌面：在 Dock 上右键图标 → **选项** → **分配给** → 选「此桌面」（或某个桌面）。这个设置跟着桌面走，之后新增桌面也不影响。
 
+## 支持项目
+
+如果这个工具帮你省了事，欢迎用任何方式支持一下；完全自愿，无论是否支持，所有功能都不受影响。
+
+### 国内：微信 / 支付宝
+
+两张收款码分别为微信支付和支付宝，请按需扫码：
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="docs/sponsors/wechat.png" alt="微信收款码" width="220"><br>
+      <strong>微信支付</strong> <sub>WeChat Pay</sub>
+    </td>
+    <td align="center">
+      <img src="docs/sponsors/alipay.png" alt="支付宝收款码" width="220"><br>
+      <strong>支付宝</strong> <sub>Alipay</sub>
+    </td>
+  </tr>
+</table>
+
+### 国际友人
+
+国外一般不用微信或支付宝。开源项目更常见的支持方式是：[GitHub Sponsors](https://github.com/sponsors)、[Buy Me a Coffee](https://www.buymeacoffee.com/) / [Ko-fi](https://ko-fi.com/)、[Patreon](https://www.patreon.com/) / [Open Collective](https://opencollective.com/) / [Liberapay](https://en.liberapay.com/)，或者用 PayPal 收款页。这些渠道 GitHub 的 Sponsor 按钮大多原生支持。
+
+目前还没有配置国际收款账号；如果你有以上任意平台的链接，欢迎提 Issue / PR 补上。在那之前，点个 Star、反馈问题或贡献代码就是很好的支持。
+
+## 许可证
+
+本项目使用 [MIT 许可证](LICENSE)。可以商用、修改、分发，只需保留版权与许可声明。
+
+## 参与贡献
+
+欢迎 Issue 与 PR；提交前请先读 [贡献指南](CONTRIBUTING.md)、[行为准则](CODE_OF_CONDUCT.md) 和 [安全策略](SECURITY.md)。
+
 ## 版本记录
 
 | 版本 | 主要变化 |
@@ -368,7 +408,7 @@ NETMOUNT_HEADLESS=1 NETMOUNT_FORCE_WATCHDOG=1 NETMOUNT_LOG=1 \
 | 1.2.0 | SMB 协议版本可选 + 一键连接诊断 |
 | 1.3.0 | 挂载来源可见（谁挂的 / 实际地址）、菜单栏逐块操作 |
 | 1.4.0 | 网络唤醒（WOL）、按 Wi-Fi 挂载、菜单栏左键状态面板、全局快捷键 ⌥⌘M/K/U、配置导入导出、界面显示版本号 |
-| 1.4.1 | 修 macOS 26 读不到 SSID（改为申请定位权限）、修菜单栏左键弹不出面板、面板布局修正 |
+| 1.4.1 | 修 macOS 26 读不到 SSID（改为走 `networksetup` 读取，不申请定位权限）、修菜单栏左键弹不出面板、面板布局修正 |
 | 1.4.2 | 修 watchdog 后台改主线程状态的数据竞争、修 `/Volumes` 挂载点校验漏洞、换网后自动补挂被跳过的盘、菜单栏面板高度随盘数变化 |
 | 1.4.3 | 修说明书排版：PDF 渲染不再整体缩放（pageZoom 会触发 WebKit 最小字号，把正文抬到 18px、字号层级全毁），改为分批出图；25 页正文全部回到安全线内，另修正被裁切的截图与过时的版本号截图 |
 | 1.4.4 | 修 3 个严重问题：掉线自动重挂只重试一次（核心功能实质失效）、导入配置端口越界导致闪退、WebDAV 挂载链路（`open https://` 只会开浏览器、直连缺账号端口）。另修：主线程 `statfs`/读 SSID 阻塞、钥匙串保存静默失败、同共享名跨服务器误判、探测线程泄漏、挂载点改为白名单、打包脚本吞编译错误。SMB 挂载改走系统认证：凭据不再拼进 URL（-1700）、不再接 `set v to`（-2753），失败信息里的密码一律抹成 `***`。移除「挂载整台服务器」——macOS 的 NetFS 必须知道共享名，这条路径从来没真正工作过。挂载位置改为锁定访达记下的真实路径：不再退到 `~/Volumes`，重挂后位置对不上直接报错，用户在别处配的文件路径不会静默失效。钥匙串改为单条密码库 + 固定签名 DR，重新编译安装后不再反复弹授权框 |
