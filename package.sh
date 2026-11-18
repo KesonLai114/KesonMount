@@ -4,10 +4,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAME="网盘管家"
-BUNDLE_ID="com.keson.netmount"
+NAME="KesonMount"
+BUNDLE_ID="com.keson.kesonmount"
 VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$ROOT/Resources/Info.plist")"
-WORK="${TMPDIR:-/tmp}/netmount-package"
+WORK="${TMPDIR:-/tmp}/kesonmount-package"
 APP="$WORK/$NAME.app"
 OUT="$ROOT/dist"
 
@@ -24,14 +24,14 @@ ditto "$ROOT/Sources" "$SRC"
 swiftc -O -swift-version 5 -target arm64-apple-macos14.0 \
   -framework AppKit -framework WebKit -framework Foundation -framework Network \
   -framework UserNotifications -framework ServiceManagement \
-  "$SRC"/*.swift -o "$WORK/NetMount-arm64"
+  "$SRC"/*.swift -o "$WORK/KesonMount-arm64"
 swiftc -O -swift-version 5 -target x86_64-apple-macos14.0 \
   -framework AppKit -framework WebKit -framework Foundation -framework Network \
   -framework UserNotifications -framework ServiceManagement \
-  "$SRC"/*.swift -o "$WORK/NetMount-x86_64"
-lipo -create -output "$APP/Contents/MacOS/NetMount" \
-  "$WORK/NetMount-arm64" "$WORK/NetMount-x86_64"
-lipo -info "$APP/Contents/MacOS/NetMount"
+  "$SRC"/*.swift -o "$WORK/KesonMount-x86_64"
+lipo -create -output "$APP/Contents/MacOS/KesonMount" \
+  "$WORK/KesonMount-arm64" "$WORK/KesonMount-x86_64"
+lipo -info "$APP/Contents/MacOS/KesonMount"
 
 echo "▶ 组装应用…"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
@@ -40,9 +40,9 @@ cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 # 内置使用说明书（菜单「帮助 → 使用说明书」读它）
 # 按 Info.plist 里的版本号精确取对应那份，别再按 mtime 猜——
 # 旧 PDF 被预览器打开、或者临时手动生成过一份，都会让「最新」挑错。
-MANUAL="$ROOT/docs/网盘管家使用说明书-$VERSION.pdf"
+MANUAL="$ROOT/docs/KesonMount使用说明书-$VERSION.pdf"
 if [ ! -f "$MANUAL" ]; then
-  MANUAL="$(ls -t "$ROOT"/docs/网盘管家使用说明书*.pdf 2>/dev/null | head -1 || true)"
+  MANUAL="$(ls -t "$ROOT"/docs/KesonMount使用说明书*.pdf 2>/dev/null | head -1 || true)"
 fi
 if [ -n "${MANUAL:-}" ] && [ -f "$MANUAL" ]; then
   cp "$MANUAL" "$APP/Contents/Resources/使用说明书.pdf"
@@ -55,7 +55,7 @@ xattr -cr "$APP" 2>/dev/null || true
 
 # 固定 DR：和 build.sh 保持一致。ad-hoc 默认会把 cdhash 写进 DR，每编一次就变，
 # 钥匙串授权随之作废（装好后要重新输密码）。钉死 identifier 后长期有效。
-SIGN_REQ='designated => identifier "com.keson.netmount"'
+SIGN_REQ='designated => identifier "com.keson.kesonmount"'
 
 if ! codesign --force --deep --sign - -r="$SIGN_REQ" "$APP" >/dev/null 2>&1; then
   echo "⚠️ ad-hoc 签名失败，安装包可能无法在新机器上启动" >&2
@@ -95,7 +95,7 @@ for f in "$OUT/$NAME-$VERSION.dmg" "$OUT/$NAME-$VERSION.pkg"; do
 done
 
 # ── 同步一份到「文档库」，成品集中在一个文件夹里，Finder 里一眼能找到 ──
-LIB="${NETMOUNT_LIB:-$HOME/Documents/文档库/网盘管家}"
+LIB="${KESONMOUNT_LIB:-${NETMOUNT_LIB:-$HOME/Documents/文档库/KesonMount}}"
 mkdir -p "$LIB"
 cp "$OUT/$NAME-$VERSION.dmg" "$OUT/$NAME-$VERSION.pkg" "$LIB/"
 [ -f "$APP/Contents/Resources/使用说明书.pdf" ] && \

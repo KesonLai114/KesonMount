@@ -2,7 +2,7 @@
 
 ## 支持范围
 
-目前只维护最新的正式版本（见 [Releases](https://github.com/KesonLai114/NetMount/releases)）。
+目前只维护最新的正式版本（见 [Releases](https://github.com/KesonLai114/KesonMount/releases)）。
 
 ## 如何报告
 

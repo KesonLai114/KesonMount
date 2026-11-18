@@ -19,7 +19,7 @@ enum MountService {
             return .ok("已经挂载在 \(existing.path)")
         }
 
-        // 密码来源：网盘管家自己存的 → 系统里（访达连过）存的 → 都不要就去问系统
+        // 密码来源：KesonMount 自己存的 → 系统里（访达连过）存的 → 都不要就去问系统
         var password = Keychain.password(for: drive)
         var inheritedFromSystem = false
         if password == nil, drive.proto != .nfs {

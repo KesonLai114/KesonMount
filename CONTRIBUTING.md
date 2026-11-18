@@ -1,6 +1,6 @@
 # 参与贡献
 
-欢迎通过 Issue 和 Pull Request 参与网盘管家（NetMount）的开发。为了让协作顺畅，请花一分钟看完这里。
+欢迎通过 Issue 和 Pull Request 参与 KesonMount 的开发。为了让协作顺畅，请花一分钟看完这里。
 
 ## 开发环境
 
@@ -27,7 +27,7 @@
 3. 一个 PR 只做一件事；描述里写清「为什么改」「怎么验证」。
 4. 不要提交以下内容：
    - 任何账号、密码、钥匙串内容、个人 NAS 地址
-   - `~/Library/Application Support/NetMount/drives.json` 等本机配置
+   - `~/Library/Application Support/KesonMount/drives.json` 等本机配置
    - `dist/` 下的 DMG / PKG 和 `.app` 构建产物
 5. 提交即表示你同意把自己的贡献按本仓库的 [MIT 许可证](LICENSE) 发布。
 

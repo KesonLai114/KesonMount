@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>网盘管家</title>
+<title>KesonMount</title>
 <style>
   :root{
     --bg: #f4f5f7;
@@ -471,7 +471,7 @@
       </svg>
     </div>
     <div class="titles">
-      <h1>网盘管家 <span class="ver" id="appVer"></span></h1>
+      <h1>KesonMount <span class="ver" id="appVer"></span></h1>
       <p id="summary">正在读取磁盘状态…</p>
     </div>
     <div class="spacer"></div>
@@ -600,7 +600,7 @@
         <div class="switchrow"><span>WebDAV 使用 HTTPS</span><div class="switch" id="swHttps"></div></div>
         <div class="hint block">默认开启。局域网里若 WebDAV 只提供明文 HTTP（例如 Alist 的 5005 端口），关掉这个开关并把端口填对即可。<b>HTTP 不加密，只建议在可信内网使用。</b></div>
       </div>
-      <div class="switchrow"><span>启动网盘管家时自动挂载</span><div class="switch" id="swAuto"></div></div>
+      <div class="switchrow"><span>启动KesonMount时自动挂载</span><div class="switch" id="swAuto"></div></div>
       <div class="switchrow"><span>掉线后自动重新挂载</span><div class="switch" id="swReconnect"></div></div>
       <div class="switchrow" title="只读通过系统挂载参数实现；挂载后会核对实际标志，没挂成只读会立即卸载并提示"><span>以只读方式挂载</span><div class="switch" id="swRO"></div></div>
 
@@ -669,7 +669,7 @@
     </header>
     <div class="body">
       <div class="sect">启动</div>
-      <div class="switchrow"><span>登录时自动启动网盘管家</span><div class="switch" id="swLogin"></div></div>
+      <div class="switchrow"><span>登录时自动启动KesonMount</span><div class="switch" id="swLogin"></div></div>
       <div class="hint block" id="loginHint"></div>
 
       <div class="sect">连接稳定性</div>
@@ -770,15 +770,15 @@ function renderSettings(){
   const ch = document.getElementById("closeHint");
   if(ch) ch.textContent = s.closeMinimizes
     ? "关掉窗口后程序继续在后台运行，点菜单栏图标或程序坞图标重新打开。"
-    : "关闭主窗口将直接退出网盘管家（也可以用菜单「退出」或 ⌘Q）。";
+    : "关闭主窗口将直接退出KesonMount（也可以用菜单「退出」或 ⌘Q）。";
 
   // 全局快捷键：列出已绑定的组合，并提示是否需要「辅助功能」权限
   const hl = document.getElementById("hotkeyHint");
   if(hl){
     if(state && state.hotkeyTrusted === false){
-      hl.innerHTML = "⚠ 还没给「辅助功能」权限，全局快捷键暂时用不了。请在 <b>系统设置 › 隐私与安全性 › 辅助功能</b> 里允许网盘管家。";
+      hl.innerHTML = "⚠ 还没给「辅助功能」权限，全局快捷键暂时用不了。请在 <b>系统设置 › 隐私与安全性 › 辅助功能</b> 里允许KesonMount。";
     }else{
-      hl.textContent = "在别的 App 里也能用：不用切回网盘管家就能挂载 / 卸载 / 唤出窗口。";
+      hl.textContent = "在别的 App 里也能用：不用切回KesonMount就能挂载 / 卸载 / 唤出窗口。";
     }
   }
   const hk = document.getElementById("hotkeyList");
@@ -789,7 +789,7 @@ function renderSettings(){
        </div>`).join("");
   }
   const av = document.getElementById("aboutVer");
-  if(av) av.textContent = "网盘管家 " + (state ? (state.versionText || (state.version ? "v" + state.version : "")) : "");
+  if(av) av.textContent = "KesonMount " + (state ? (state.versionText || (state.version ? "v" + state.version : "")) : "");
 
   const lh = document.getElementById("loginHint");
   if(lh) lh.textContent = s.launchHint || "";
@@ -991,7 +991,7 @@ function cardHTML(d){
   const originLine = (d.mounted && d.mountOrigin) ? `
     <div class="originline">
       <span class="originbadge ${d.mountOrigin === "app" ? "app" : "sys"}"
-            title="${d.mountOrigin === "app" ? "这次是网盘管家挂上去的" : "访达/系统挂上去的，网盘管家负责管理"}">${esc(d.mountOriginText)}</span>
+            title="${d.mountOrigin === "app" ? "这次是KesonMount挂上去的" : "访达/系统挂上去的，KesonMount负责管理"}">${esc(d.mountOriginText)}</span>
       <span class="originsrv" title="${esc(d.mountSource)}">${esc(d.mountServer)}</span>
     </div>` : "";
 
@@ -1052,7 +1052,7 @@ function cardHTML(d){
       <button class="btn sm ghost" data-act="reveal" ${d.mounted ? "" : "disabled"}>打开</button>
       <div class="grow"></div>
       ${d.credential && d.credential !== "none" ? '<div class="automark cred" title="密码已记住，下次直接挂载"><svg viewBox="0 0 24 24"><path d="M14 2a6 6 0 0 0-5.66 8H2v4h2v2h2v2h3.5l1-1v-2H12v-2h2v-2h.34A6 6 0 1 0 14 2Zm2.5 5.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>免密</div>' : ""}
-      ${d.autoMount ? '<div class="automark" title="启动网盘管家时自动挂载"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1 5h2v6h-2V7Z"/></svg>开机挂载</div>' : ""}
+      ${d.autoMount ? '<div class="automark" title="启动KesonMount时自动挂载"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1 5h2v6h-2V7Z"/></svg>开机挂载</div>' : ""}
       ${d.autoRemount ? '<div class="automark reconnect" title="掉线后会自动重新挂载"><svg viewBox="0 0 24 24"><path d="M12 4V1L7 6l5 5V8a5 5 0 1 1-5 5H5a7 7 0 1 0 7-9Z"/></svg>自动重连</div>' : ""}
       ${d.proto === "smb" && d.smbVersion && d.smbVersion !== "auto" ? `<div class="automark" title="SMB 协议版本：${esc(d.smbVersionTitle)}">${esc(d.smbVersion)}</div>` : ""}
       ${d.networkSkipped ? `<div class="automark skip" title="${esc(d.networkSkipReason || "当前网络不在允许列表，已跳过自动挂载")}">⚠ 不在允许的网络 · 已跳过</div>` : ""}
@@ -1299,7 +1299,7 @@ function openEditor(d){
     }else if(d && d.proto === "nfs"){
       ch.innerHTML = "NFS 不需要密码。";
     }else{
-      ch.innerHTML = "密码保存在 macOS 钥匙串，不会明文写入配置文件。留空也能试：先找网盘管家存的，再找系统里存的，都没有才让你输。";
+      ch.innerHTML = "密码保存在 macOS 钥匙串，不会明文写入配置文件。留空也能试：先找KesonMount存的，再找系统里存的，都没有才让你输。";
     }
   }
   document.getElementById("fMount").value = d ? (d.mountPointRaw || "") : "";
@@ -1455,7 +1455,7 @@ function askRemove(d){
   pendingRemove = d;
   document.getElementById("confirmTitle").textContent = "移除「" + d.name + "」？";
   document.getElementById("confirmText").innerHTML =
-    "只会从网盘管家中移除这条记录，<b>不会删除服务器上的任何文件</b>。" +
+    "只会从KesonMount中移除这条记录，<b>不会删除服务器上的任何文件</b>。" +
     (d.mounted ? "<br>当前处于挂载状态，移除时会先卸载。" : "");
   document.getElementById("confirmOverlay").classList.remove("hidden");
 }
@@ -1519,7 +1519,7 @@ function renderDiscovery(){
         <div style="font-size:11px;color:var(--text-3);line-height:1.55">
           扫不到？可能被系统挡住了本地网络，请在
           <a href="#" data-lan="perm" style="color:var(--accent);text-decoration:none">权限设置</a>
-          里允许「网盘管家」。
+          里允许「KesonMount」。
         </div>
       </div>`;
     return;

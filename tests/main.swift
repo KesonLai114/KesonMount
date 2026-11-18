@@ -198,9 +198,9 @@ private func childPIDCount() -> Int {
 
 section("7. Shell 子进程回归（真实跑本地命令）")
 
-let echo = Shell.run("/bin/echo", ["netmount-ok"], timeout: 5)
+let echo = Shell.run("/bin/echo", ["kesonmount-ok"], timeout: 5)
 eq("echo 退出码", echo.status, 0)
-eq("echo 标准输出", echo.out.trimmingCharacters(in: .whitespacesAndNewlines), "netmount-ok")
+eq("echo 标准输出", echo.out.trimmingCharacters(in: .whitespacesAndNewlines), "kesonmount-ok")
 
 // 先预热一次，把 Diagnostics / Logger 的一次性初始化排除在基线之外
 _ = Shell.run("/bin/sleep", ["4.71"], timeout: 0.3)
@@ -246,23 +246,27 @@ section("8. 深链接与 NFS 命令")
 
 let anyID = UUID()
 
-eq("netmount://show", DeepLink.parse("netmount://show"), DeepLink.Command.show)
-eq("裸 scheme 等于唤出窗口", DeepLink.parse("netmount:"), DeepLink.Command.show)
-eq("大小写不敏感", DeepLink.parse("NETMOUNT://Show"), DeepLink.Command.show)
-eq("path 形式也认", DeepLink.parse("netmount:mountAll"), DeepLink.Command.mountAll)
-eq("mountAll", DeepLink.parse("netmount://mountAll"), DeepLink.Command.mountAll)
-eq("unmountAll", DeepLink.parse("netmount://unmountAll"), DeepLink.Command.unmountAll)
-eq("refresh", DeepLink.parse("netmount://refresh"), DeepLink.Command.refresh)
-eq("mount?id=", DeepLink.parse("netmount://mount?id=\(anyID.uuidString)"),
+eq("kesonmount://show", DeepLink.parse("kesonmount://show"), DeepLink.Command.show)
+eq("裸 scheme 等于唤出窗口", DeepLink.parse("kesonmount:"), DeepLink.Command.show)
+eq("大小写不敏感", DeepLink.parse("KESONMOUNT://Show"), DeepLink.Command.show)
+eq("旧 netmount scheme 仍可用", DeepLink.parse("netmount://show"), DeepLink.Command.show)
+eq("旧 scheme 大小写不敏感", DeepLink.parse("NETMOUNT://Show"), DeepLink.Command.show)
+eq("旧 scheme 带 id", DeepLink.parse("netmount://mount?id=\(anyID.uuidString)"),
    DeepLink.Command.mount(anyID))
-eq("unmount?id=", DeepLink.parse("netmount://unmount?id=\(anyID.uuidString)"),
+eq("path 形式也认", DeepLink.parse("kesonmount:mountAll"), DeepLink.Command.mountAll)
+eq("mountAll", DeepLink.parse("kesonmount://mountAll"), DeepLink.Command.mountAll)
+eq("unmountAll", DeepLink.parse("kesonmount://unmountAll"), DeepLink.Command.unmountAll)
+eq("refresh", DeepLink.parse("kesonmount://refresh"), DeepLink.Command.refresh)
+eq("mount?id=", DeepLink.parse("kesonmount://mount?id=\(anyID.uuidString)"),
+   DeepLink.Command.mount(anyID))
+eq("unmount?id=", DeepLink.parse("kesonmount://unmount?id=\(anyID.uuidString)"),
    DeepLink.Command.unmount(anyID))
-eq("reconnect?id=", DeepLink.parse("netmount://reconnect?id=\(anyID.uuidString)"),
+eq("reconnect?id=", DeepLink.parse("kesonmount://reconnect?id=\(anyID.uuidString)"),
    DeepLink.Command.reconnect(anyID))
 eq("别的 scheme 一律不认", DeepLink.parse("http://mountAll"), DeepLink.Command?.none)
-eq("未知动作不认", DeepLink.parse("netmount://formatDisk"), DeepLink.Command?.none)
-eq("缺 id 的 mount 不认", DeepLink.parse("netmount://mount"), DeepLink.Command?.none)
-eq("id 不是 UUID 不认", DeepLink.parse("netmount://mount?id=1"), DeepLink.Command?.none)
+eq("未知动作不认", DeepLink.parse("kesonmount://formatDisk"), DeepLink.Command?.none)
+eq("缺 id 的 mount 不认", DeepLink.parse("kesonmount://mount"), DeepLink.Command?.none)
+eq("id 不是 UUID 不认", DeepLink.parse("kesonmount://mount?id=1"), DeepLink.Command?.none)
 eq("空串不认", DeepLink.parse("   "), DeepLink.Command?.none)
 
 let nfsCmd = MountService.nfsMountCommand(host: "nas.local", export: "/volume1/video",

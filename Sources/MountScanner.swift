@@ -99,7 +99,7 @@ enum MountScanner {
     ///   `192.168.31.4` → `192.168.31.4`
     ///
     /// 为什么要归一化：系统（访达）挂载时用的是 Bonjour 服务名
-    /// `Z4S-I0C9._smb._tcp.local`，网盘管家自己挂载时用的是 IP 或 `Z4S-I0C9.local`。
+    /// `Z4S-I0C9._smb._tcp.local`，KesonMount 自己挂载时用的是 IP 或 `Z4S-I0C9.local`。
     /// 字面上完全不同，其实是同一台机器上的同一个共享——不归一化，程序就会以为
     /// 「没挂上」，于是再挂一份，桌面上多出一个硬盘图标。
     static func serverKey(_ raw: String) -> String {
@@ -186,14 +186,14 @@ enum MountScanner {
 
     private static func rank(_ v: MountedVolume) -> Int {
         if v.path.hasPrefix("/Volumes/") { return 0 }
-        if v.path.contains("/Volumes/") { return 2 }   // ~/Volumes/... 老版本网盘管家挂的
+        if v.path.contains("/Volumes/") { return 2 }   // ~/Volumes/... 老版本KesonMount挂的
         return 1
     }
 
     /// 找出「同一块共享被挂了不止一次」里明确多余的那些挂载点。
     ///
     /// 只认两类，其余一律不碰（宁可留着，也不误摘用户自己的盘）：
-    ///   1. 老版本网盘管家挂到 `~/Volumes/...` 的那份——正牌的在 `/Volumes` 已经有一份；
+    ///   1. 老版本KesonMount挂到 `~/Volumes/...` 的那份——正牌的在 `/Volumes` 已经有一份；
     ///   2. 系统在同一个共享上又挂出来的 `xxx-1`。
     static func redundant(in volumes: [MountedVolume]) -> [MountedVolume] {
         var groups: [String: [MountedVolume]] = [:]

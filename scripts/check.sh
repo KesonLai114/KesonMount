@@ -19,7 +19,7 @@ echo "   OK（warning 不拦，但会打印出来）"
 
 echo "▶ 2/5 界面 JavaScript 语法"
 if command -v node >/dev/null 2>&1; then
-  JS="$(mktemp /tmp/netmount-ui.XXXXXX.js)"
+  JS="$(mktemp /tmp/kesonmount-ui.XXXXXX.js)"
   trap 'rm -f "$JS"' EXIT
   python3 - "$JS" <<'PY'
 import re, sys

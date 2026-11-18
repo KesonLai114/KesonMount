@@ -6,7 +6,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARCH="$(uname -m)"
-WORK="$(mktemp -d /tmp/netmount-tests.XXXXXX)"
+WORK="$(mktemp -d /tmp/kesonmount-tests.XXXXXX)"
 trap 'rm -rf "$WORK"' EXIT
 
 # 工程放在 SMB 卷上时，源码 mtime 抖动会让 swiftc 报
@@ -19,7 +19,7 @@ echo "▶ 编译测试程序（${ARCH}）…"
 swiftc -O -swift-version 5 -target "${ARCH}-apple-macos14.0" \
   -framework AppKit -framework WebKit -framework Foundation -framework Network \
   -framework UserNotifications -framework ServiceManagement \
-  "$WORK"/Sources/*.swift -o "$WORK/netmount-tests"
+  "$WORK"/Sources/*.swift -o "$WORK/kesonmount-tests"
 
 echo "▶ 运行…"
-"$WORK/netmount-tests"
+"$WORK/kesonmount-tests"

@@ -49,13 +49,13 @@ enum LANDiscovery {
                 }
                 let snapshot = Array(results.values).sorted { $0.name < $1.name }
                 lock.unlock()
-                if ProcessInfo.processInfo.environment["NETMOUNT_LOG"] == "1" {
+                if AppEnvironment.value("LOG") == "1" {
                     FileHandle.standardError.write("[LAN] \(type) 结果 \(found.count) 条，累计 \(snapshot.count) 台\n".data(using: .utf8)!)
                 }
                 if changed { onFound(snapshot) }
             }
             browser.stateUpdateHandler = { st in
-                if ProcessInfo.processInfo.environment["NETMOUNT_LOG"] == "1" {
+                if AppEnvironment.value("LOG") == "1" {
                     FileHandle.standardError.write("[LAN] browser \(type) → \(st)\n".data(using: .utf8)!)
                 }
             }
@@ -69,7 +69,7 @@ enum LANDiscovery {
         // GCD 定时与 RunLoop 模式无关，稳。
         let finished = NSLock()   // 兼作「只结束一次」的开关
         var done = false
-        if ProcessInfo.processInfo.environment["NETMOUNT_LOG"] == "1" {
+        if AppEnvironment.value("LOG") == "1" {
             FileHandle.standardError.write("[LAN] 排定收尾定时 \(duration)s main=\(Thread.isMainThread)\n".data(using: .utf8)!)
         }
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + duration) {
@@ -78,7 +78,7 @@ enum LANDiscovery {
             done = true
             finished.unlock()
 
-            if ProcessInfo.processInfo.environment["NETMOUNT_LOG"] == "1" {
+            if AppEnvironment.value("LOG") == "1" {
                 FileHandle.standardError.write("[LAN] 收尾定时触发，结束扫描\n".data(using: .utf8)!)
             }
             browsers.forEach { $0.cancel() }

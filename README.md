@@ -1,13 +1,15 @@
 <p align="center">
-  <img src="docs/图标.png" width="120" alt="网盘管家图标">
+  <img src="docs/图标.png" width="120" alt="KesonMount图标">
 </p>
 
-# 网盘管家（NetMount）
+# KesonMount
 
-[![CI](https://github.com/KesonLai114/NetMount/actions/workflows/check.yml/badge.svg)](https://github.com/KesonLai114/NetMount/actions/workflows/check.yml)
+[![CI](https://github.com/KesonLai114/KesonMount/actions/workflows/check.yml/badge.svg)](https://github.com/KesonLai114/KesonMount/actions/workflows/check.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **简体中文** | [English](README.en.md)
+
+> 项目原名 NetMount / 网盘管家。1.6.0 起统一为 **KesonMount**：旧配置目录、钥匙串密码、`netmount://` 深链接和 `NETMOUNT_*` 调试环境变量仍会自动识别并迁移，不需要手动搬数据。
 
 一个 macOS 原生小应用，把「极空间」等网络硬盘集中管理：图形界面看容量、一键挂载 / 卸载、随时添加新的网络硬盘。
 
@@ -37,12 +39,12 @@
 | 密码安全 | 走系统 Security 框架在**进程内**读写钥匙串（不经过命令行，密码不进进程表）；删除磁盘时真删，编辑窗口也能单独清除；导入配置时主机 / 账号变了会作废旧密码 |
 | 扫描已挂载 | 手动把新出现的网络磁盘纳管进来（⌘⇧I） |
 | 局域网发现 | Bonjour 自动找同网段的 NAS，展开即选共享，一键添加并挂载 |
-| 免密挂载 | 密码依次取自：网盘管家存的 → 系统（访达）存的 → 才问你；大多情况直接挂上 |
-| 挂载来源可见 | 卡片和编辑框都会说明这块盘是「网盘管家挂载」还是「系统 / 访达挂载」，以及系统实际用的服务器地址 |
+| 免密挂载 | 密码依次取自：KesonMount存的 → 系统（访达）存的 → 才问你；大多情况直接挂上 |
+| 挂载来源可见 | 卡片和编辑框都会说明这块盘是「KesonMount挂载」还是「系统 / 访达挂载」，以及系统实际用的服务器地址 |
 | 菜单栏图标 | 顶部菜单栏常驻图标；**左键弹状态面板、右键出完整菜单**（19 项全部带图标）：一键挂载或卸载全部、逐块操作、扫描、添加 |
 | 菜单栏状态面板 | 不用切窗口就能看版本号、已挂载汇总、逐块状态与容量，行内直接挂载 / 卸载；每 2 秒自刷 |
 | 全局快捷键 | ⌥⌘M 显示 / 隐藏窗口、⌥⌘K 挂载全部、⌥⌘U 卸载全部，在任何 App 里都生效（需辅助功能权限，可整体关闭） |
-| 深链接 | `netmount://mountAll`、`netmount://mount?id=<盘ID>` 等，快捷指令、Raycast、脚本都能直接指挥它 |
+| 深链接 | `kesonmount://mountAll`、`kesonmount://mount?id=<盘ID>` 等，快捷指令、Raycast、脚本都能直接指挥它 |
 | 通知带按钮 | 掉线通知里直接「立即重连」，不用先点开菜单栏再找那块盘 |
 | 网络唤醒 | 填了网卡 MAC 的盘，端口探不通时先发 Wake-on-LAN 魔术包把睡眠中的 NAS 叫醒，再继续挂载 |
 | 按 Wi-Fi 挂载 | 每块盘可设 Wi-Fi 白名单，出门在外不瞎连；回到家（换网）后自动补挂，被跳过时卡片明确标注 |
@@ -59,7 +61,7 @@
 
 ## 使用说明书
 
-`docs/网盘管家使用说明书-1.6.0.pdf` —— 25 页 A4，图文并茂，面向完全没用过的人：
+`docs/KesonMount使用说明书-1.6.0.pdf` —— 25 页 A4，图文并茂，面向完全没用过的人：
 
 | 章节 | 内容 |
 | --- | --- |
@@ -89,14 +91,14 @@ swiftc -O -framework AppKit -framework WebKit -framework PDFKit \
 
 # 先输出到本机磁盘，再拷回去
 /tmp/makepdf docs/说明书.html /tmp/manual-1.6.0.pdf
-cp /tmp/manual-1.6.0.pdf "docs/网盘管家使用说明书-1.6.0.pdf"
+cp /tmp/manual-1.6.0.pdf "docs/KesonMount使用说明书-1.6.0.pdf"
 ```
 
 > 排版源文件是 `docs/说明书.html`，每页固定 794×1122 px（A4 @96dpi）。
 > `makepdf` 先用 WKWebView 渲染成一张长页，再按 A4 逐页裁切——比 `NSPrintOperation` 在无窗口环境里可靠。
 > 注意：PDF 渲染引擎对**多层 background 渐变**和 `radial-gradient` 支持有 bug，会渲染成色块，排版时只用单层 `linear-gradient`。
 > 注意 2：直接往 SMB 卷上的旧 PDF 写会失败（`CGContext` 报「无法创建输出 PDF」/ `EBUSY`），**必须先落到 `/tmp` 再拷**；
-> 如果旧 PDF 正被预览器打开，SMB 会锁住它（连改名都不行），这时把新文件存成 `网盘管家使用说明书-<版本>.pdf` 即可——
+> 如果旧 PDF 正被预览器打开，SMB 会锁住它（连改名都不行），这时把新文件存成 `KesonMount使用说明书-<版本>.pdf` 即可——
 > `build.sh` / `package.sh` 会按修改时间自动挑 `docs/` 下最新的那一份打进 App。
 > 新增页要注意别超出 1122px 高（超了会被裁掉）：`.shot` 里的图用 `style="width:420px"` 之类限宽，别用 100% 宽。
 >
@@ -132,21 +134,21 @@ cp /tmp/manual-1.6.0.pdf "docs/网盘管家使用说明书-1.6.0.pdf"
 
 > 三个全局快捷键需要「辅助功能」权限（系统设置 › 隐私与安全性 › 辅助功能）。没授权时 App 在前台仍可用，只是别的 App 里按了没反应；偏好设置里有总开关，关掉后组合键交还系统。
 
-## 从脚本 / 快捷指令调用（`netmount://`）
+## 从脚本 / 快捷指令调用（`kesonmount://`）
 
 注册了一个 URL scheme，任何能 `open` 一个网址的地方都能指挥它：
 
 ```bash
-open "netmount://show"                      # 唤出主窗口
-open "netmount://mountAll"                  # 挂载全部
-open "netmount://unmountAll"                # 卸载全部
-open "netmount://refresh"                   # 刷新状态
-open "netmount://mount?id=<磁盘ID>"          # 挂某一块
-open "netmount://unmount?id=<磁盘ID>"        # 卸某一块
-open "netmount://reconnect?id=<磁盘ID>"      # 立即重连某一块
+open "kesonmount://show"                      # 唤出主窗口
+open "kesonmount://mountAll"                  # 挂载全部
+open "kesonmount://unmountAll"                # 卸载全部
+open "kesonmount://refresh"                   # 刷新状态
+open "kesonmount://mount?id=<磁盘ID>"          # 挂某一块
+open "kesonmount://unmount?id=<磁盘ID>"        # 卸某一块
+open "kesonmount://reconnect?id=<磁盘ID>"      # 立即重连某一块
 ```
 
-磁盘 ID 在 `~/Library/Application Support/NetMount/drives.json` 里每块盘的 `id` 字段，也可以用「导出配置」看到。
+磁盘 ID 在 `~/Library/Application Support/KesonMount/drives.json` 里每块盘的 `id` 字段，也可以用「导出配置」看到。
 认不出来的地址一律什么都不做——这条入口是给外部调用的，不做任何猜测。
 
 界面上的其他动作：双击卡片 = 挂载 / 卸载；卡片右下「⋯」= 编辑连接信息、复制地址、开关「开机挂载」、开关「掉线自动重挂」、连接诊断、立即重新连接、移除。
@@ -159,23 +161,23 @@ open "netmount://reconnect?id=<磁盘ID>"      # 立即重连某一块
 
 所有能直接用的东西都集中在一个文件夹，Finder 里一眼找得到：
 
-**`~/Documents/文档库/网盘管家/`**
+**`~/Documents/文档库/KesonMount/`**
 
 | 文件 | 用途 |
 | --- | --- |
-| `网盘管家.app` | 双击即用（与 `/Applications` 里那份完全相同） |
-| `网盘管家-<版本>.dmg` | 拖到「应用程序」安装，最直观 |
-| `网盘管家-<版本>.pkg` | 双击安装，适合批量分发 |
-| `网盘管家使用说明书-<版本>.pdf` | 图文说明书，随 App 一起内置 |
+| `KesonMount.app` | 双击即用（与 `/Applications` 里那份完全相同） |
+| `KesonMount-<版本>.dmg` | 拖到「应用程序」安装，最直观 |
+| `KesonMount-<版本>.pkg` | 双击安装，适合批量分发 |
+| `KesonMount使用说明书-<版本>.pdf` | 图文说明书，随 App 一起内置 |
 | `产品说明.md` | 就是这份 README |
 | `快速说明.txt` | 一页纸：装哪个、被 Gatekeeper 拦了怎么放行 |
 
-`./build.sh` 和 `./package.sh` 跑完都会自动同步到这里；想换位置就设 `NETMOUNT_LIB=/别的/路径`。
+`./build.sh` 和 `./package.sh` 跑完都会自动同步到这里；想换位置就设 `KESONMOUNT_LIB=/别的/路径`。
 
 ## 构建与安装
 
 ```bash
-cd NetMount
+cd KesonMount
 ./build.sh            # 编译 + 安装到 /Applications + 打开
 ./build.sh --no-open  # 只编译安装
 ```
@@ -194,13 +196,13 @@ cd NetMount
 
 | 文件 | 用途 |
 | --- | --- |
-| `网盘管家-1.6.0.dmg` | 打开后把图标拖到「应用程序」，最直观 |
-| `网盘管家-1.6.0.pkg` | 双击安装，自动装到「应用程序」，适合批量分发 |
+| `KesonMount-1.6.0.dmg` | 打开后把图标拖到「应用程序」，最直观 |
+| `KesonMount-1.6.0.pkg` | 双击安装，自动装到「应用程序」，适合批量分发 |
 
 安装包内已包含 `安装说明.txt`（含首次打开被系统拦截时的三种放行方法）。
 
 > 应用没有购买苹果开发者证书，只做了本地 ad-hoc 签名，所以在新电脑上第一次打开会被 Gatekeeper 拦一下：
-> Control + 点击图标 → 打开；或 `xattr -dr com.apple.quarantine /Applications/网盘管家.app`。
+> Control + 点击图标 → 打开；或 `xattr -dr com.apple.quarantine /Applications/KesonMount.app`。
 > 想彻底免提示需要 Apple Developer 账号（99 美元/年）做签名与公证。
 
 > 注意：`installer` 不能直接从网络宗卷安装 PKG，先把 pkg 拷到本机磁盘再装。
@@ -215,14 +217,14 @@ cd NetMount
 
 `check.sh` 依次做 5 件事：Swift 类型检查、界面 JavaScript 语法、说明书版本号一致性、界面 `call("…")` ↔ 原生 bridge 对照、回归测试。`warning` 只打印不拦（目前只剩 `popUpMenu` 的弃用提示）。项目带 GitHub Actions（`.github/workflows/check.yml`），push / PR 会在 macOS 14 runner 上自动跑同一套检查。
 
-`tests/run.sh` 会先把 `Sources/` 拷到本机磁盘——源码放在 SMB 卷上时 `swiftc` 会因 mtime 抖动报「input file … was modified during the build」——再去掉 App 入口、用 `tests/main.swift` 编译成命令行程序。它不启动 App、不碰钥匙串、不发网络请求、不挂载磁盘：前 6 组是纯函数断言（挂载点白名单、外部配置解码、URL 拼装、脱敏与转义），第 7 组会真实 fork `/bin` 下的无害命令，验证子进程超时回收、管道 fd 不泄漏、200KB stdin 不死锁、超时不回传带密码的 stderr。**共 95 项断言**。
+`tests/run.sh` 会先把 `Sources/` 拷到本机磁盘——源码放在 SMB 卷上时 `swiftc` 会因 mtime 抖动报「input file … was modified during the build」——再去掉 App 入口、用 `tests/main.swift` 编译成命令行程序。它不启动 App、不碰钥匙串、不发网络请求、不挂载磁盘：前 6 组是纯函数断言（挂载点白名单、外部配置解码、URL 拼装、脱敏与转义），第 7 组会真实 fork `/bin` 下的无害命令，验证子进程超时回收、管道 fd 不泄漏、200KB stdin 不死锁、超时不回传带密码的 stderr。**共 98 项断言**（含改名后旧 `netmount://` 兼容用例）。
 
 版本号只改 `Resources/Info.plist`，再跑 `./scripts/sync-version.sh` 同步说明书 HTML；`--check` 会拦住说明书里残留的旧产品版本号（不会把 SMB 协议版本 `3.1.1` 误判成产品版本）。
 
 ## 文件结构
 
 ```
-NetMount/
+KesonMount/
 ├── build.sh                  # 本机编译安装（装到 /Applications）
 ├── package.sh                # 打 DMG / PKG 安装包（通用二进制）
 ├── scripts/
@@ -261,14 +263,14 @@ NetMount/
 │   └── makepdf.swift         # HTML → A4 PDF（说明书排版用）
 └── docs/                     # 预览图、说明书源文件与成品
     ├── 说明书.html            # 说明书排版源
-    ├── 网盘管家使用说明书-1.6.0.pdf  # 成品，打包时内置进 app
+    ├── KesonMount使用说明书-1.6.0.pdf  # 成品，打包时内置进 app
     └── 预览-*.png            # README 用截图
 ```
 
 ## 数据与配置
 
-- 磁盘配置：`~/Library/Application Support/NetMount/drives.json`，原子写入；运行期间若被外部改动，写回前会自动备份成 `drives.json.external-<时间戳>`
-- 密码：macOS 钥匙串里一条 `NetMount` 记录，按磁盘 ID 索引；不写进配置文件，也不进命令行参数
+- 磁盘配置：`~/Library/Application Support/KesonMount/drives.json`，原子写入；运行期间若被外部改动，写回前会自动备份成 `drives.json.external-<时间戳>`
+- 密码：macOS 钥匙串里一条 `KesonMount` 记录，按磁盘 ID 索引；不写进配置文件，也不进命令行参数
 - 挂载点：固定 `/Volumes/<共享名>`，和访达一致；界面上只读展示，不支持自定义目录
 
 ## 挂载是怎么做的
@@ -312,19 +314,19 @@ NFS 挂载时会弹系统的管理员授权框，输入开机密码即自动挂�
 
 ```bash
 # 隐身截图：窗口不显示在任何桌面（包括你新加的桌面）
-NETMOUNT_SNAPSHOT=/tmp/shot.png \
-  /Applications/网盘管家.app/Contents/MacOS/NetMount
+KESONMOUNT_SNAPSHOT=/tmp/shot.png \
+  /Applications/KesonMount.app/Contents/MacOS/KesonMount
 
 # 顺便执行一段界面脚本再截图（例如打开编辑弹窗）
-NETMOUNT_SNAPSHOT=/tmp/shot.png \
-NETMOUNT_SNAPSHOT_JS='openEditor(state.drives[0])' \
-  /Applications/网盘管家.app/Contents/MacOS/NetMount
+KESONMOUNT_SNAPSHOT=/tmp/shot.png \
+KESONMOUNT_SNAPSHOT_JS='openEditor(state.drives[0])' \
+  /Applications/KesonMount.app/Contents/MacOS/KesonMount
 ```
 
-- 只要设置了 `NETMOUNT_SNAPSHOT`，就自动进入隐身模式；也可用 `NETMOUNT_HEADLESS=1` 强制开启。
+- 只要设置了 `KESONMOUNT_SNAPSHOT`，就自动进入隐身模式；也可用 `KESONMOUNT_HEADLESS=1` 强制开启。
 - 隐身模式下窗口被移到屏幕外且不激活，**不会出现在任何桌面**，因此你随时增删桌面都不受影响。
-- 需要真的看窗口时，正常 `open /Applications/网盘管家.app` 即可。
-- `NETMOUNT_SNAPSHOT_JS` 里可以顺手改界面状态再截图，比如滚到编辑器下半部分：
+- 需要真的看窗口时，正常 `open /Applications/KesonMount.app` 即可。
+- `KESONMOUNT_SNAPSHOT_JS` 里可以顺手改界面状态再截图，比如滚到编辑器下半部分：
   `openEditor(state.drives[0]); setTimeout(()=>{document.querySelector("#editorOverlay .body").scrollTop=980},400)`
 
 ### 菜单栏与原生面板自检
@@ -333,14 +335,14 @@ NETMOUNT_SNAPSHOT_JS='openEditor(state.drives[0])' \
 
 ```bash
 # 打印菜单结构：▣ 表示这一项有图标，▢ 表示漏了；同时把面板渲染成 PNG
-NETMOUNT_DUMP_STATUSBAR=1 NETMOUNT_DUMP_POPOVER=1 \
-NETMOUNT_SNAPSHOT_POPOVER=/tmp/popover.png \
-  /Applications/网盘管家.app/Contents/MacOS/NetMount
+KESONMOUNT_DUMP_STATUSBAR=1 KESONMOUNT_DUMP_POPOVER=1 \
+KESONMOUNT_SNAPSHOT_POPOVER=/tmp/popover.png \
+  /Applications/KesonMount.app/Contents/MacOS/KesonMount
 ```
 
-- `NETMOUNT_DUMP_STATUSBAR=1`：逐行打印菜单项、勾选状态与图标有无，改菜单后先跑这个，能立刻看出哪项忘了配图标。
-- `NETMOUNT_DUMP_POPOVER=1`：构建左键面板并打印实际尺寸（应等于 `170 + min(盘数×44+8, 300)`）。
-- `NETMOUNT_SNAPSHOT_POPOVER=<png>`：把面板用 `cacheDisplay` 渲染成图片，布局改了可以直接看。
+- `KESONMOUNT_DUMP_STATUSBAR=1`：逐行打印菜单项、勾选状态与图标有无，改菜单后先跑这个，能立刻看出哪项忘了配图标。
+- `KESONMOUNT_DUMP_POPOVER=1`：构建左键面板并打印实际尺寸（应等于 `170 + min(盘数×44+8, 300)`）。
+- `KESONMOUNT_SNAPSHOT_POPOVER=<png>`：把面板用 `cacheDisplay` 渲染成图片，布局改了可以直接看。
 
 ### 看门狗日志
 
@@ -348,11 +350,11 @@ NETMOUNT_SNAPSHOT_POPOVER=/tmp/popover.png \
 
 ```bash
 # 打印每轮扫描、死活判断、重连次数与退避倒计时
-NETMOUNT_LOG=1 open /Applications/网盘管家.app
+KESONMOUNT_LOG=1 open /Applications/KesonMount.app
 
 # 隐身模式下也想让看门狗跑起来（默认隐身不启动监控）
-NETMOUNT_HEADLESS=1 NETMOUNT_FORCE_WATCHDOG=1 NETMOUNT_LOG=1 \
-  /Applications/网盘管家.app/Contents/MacOS/NetMount
+KESONMOUNT_HEADLESS=1 KESONMOUNT_FORCE_WATCHDOG=1 KESONMOUNT_LOG=1 \
+  /Applications/KesonMount.app/Contents/MacOS/KesonMount
 ```
 
 日志形如：`[看门狗] 第 12 轮：扫到 2 个网络卷，盯着 2 块盘` → `活着 1 块；掉线 1 块；假死 0 块` → `「极空间HD」连接已断开` → `开始第 2 次重连，失败的话 60 秒后再试`。
@@ -415,6 +417,6 @@ NETMOUNT_HEADLESS=1 NETMOUNT_FORCE_WATCHDOG=1 NETMOUNT_LOG=1 \
 | 1.4.5 | 安全与可靠性补强：移除「自定义挂载点」的用户态直连——那条路必须把密码拼进命令行参数（同机 `ps` 可见），现在统一挂 `/Volumes/共享名`；错误脱敏覆盖无 scheme 的 `//user:pass@host`；「只读挂载」真实生效（`rdonly` 挂载参数 + 挂载后核对只读标志，未生效即自动卸载）。修看门狗「假重连」（强制卸载失败时把死盘判成重连成功，退避清零、通知每 30 秒循环）、启动自动挂载失败后不再重试、无用户名挂载卷的共享名解析、落点校验对大小写误报、钥匙串并发覆盖丢密码、NFS 提示命令缺前导斜杠 |
 | 1.5.0 | 第三轮审查全量落地。**稳定性**：子进程超时强制回收（SIGKILL + `waitUntilExit()` + 关管道，不留僵尸／读线程）、挂载与对账统一串行队列、冷启动删盘真删钥匙串、配置加载校验挂载点、导入按 ID 覆盖时作废旧密码、用户名禁带冒号、看门狗状态随删盘/换网清理、WOL 通知幂等、容量探测去重、局域网发现加代次校验并断开 WKWebView 消息循环引用、主刷新定时器改用 `.common`。**新功能**：WebDAV HTTP/HTTPS 开关、单独清除已存密码、脱敏诊断报告导出（同时写系统统一日志）。**工程化**：文档与实现全面对齐、建立 git 版本库、静态检查脚本与 75 项回归断言、macOS 14 CI |
 
-| 1.6.0 | 性能与可用性：挂载表改读 `getmntinfo(3)` 系统调用（不再每 4 秒 fork 一次 `/sbin/mount`，顺带修掉「共享名里带 ` on ` 就解析错」）、窗口隐藏时刷新降到 30 秒、钥匙串读取移出主线程（锁屏时界面不再冻住）。**修**：健康探测的 inFlight 记录在超时后永不清除，导致同一位置重挂后被永久判死、每 5 分钟无谓重挂一次；卸载成功后主动清掉该路径的探测记录。**新功能**：NFS 走系统授权框真正挂载（不再只打印一条 sudo 命令）、掉线通知带「立即重连」按钮、`netmount://` 深链接（快捷指令 / 脚本可调用）。回归断言 75 → 95 项 |
+| 1.6.0 | 性能与可用性：挂载表改读 `getmntinfo(3)` 系统调用（不再每 4 秒 fork 一次 `/sbin/mount`，顺带修掉「共享名里带 ` on ` 就解析错」）、窗口隐藏时刷新降到 30 秒、钥匙串读取移出主线程（锁屏时界面不再冻住）。**修**：健康探测的 inFlight 记录在超时后永不清除，导致同一位置重挂后被永久判死、每 5 分钟无谓重挂一次；卸载成功后主动清掉该路径的探测记录。**新功能**：NFS 走系统授权框真正挂载（不再只打印一条 sudo 命令）、掉线通知带「立即重连」按钮、`kesonmount://` 深链接（快捷指令 / 脚本可调用）。回归断言 75 → 95 项；改名兼容后追加 3 项，当前 98 项 |
 
 > 版本号规则：修 bug / 安全 → PATCH（1.4.1 → 1.4.2）；加功能 → MINOR（1.3.0 → 1.4.0）；不兼容大改 → MAJOR。

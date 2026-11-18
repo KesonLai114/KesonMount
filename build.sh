@@ -1,15 +1,15 @@
 #!/bin/bash
-# 构建「网盘管家」并安装到 /Applications
+# 构建「KesonMount」并安装到 /Applications
 # 用法： ./build.sh            构建 + 安装 + 打开
 #        ./build.sh --no-open  构建 + 安装，不打开
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAME="网盘管家"
+NAME="KesonMount"
 ARCH="$(uname -m)"
 
 # 源码放网络盘没问题，但 .app 必须构建在本机磁盘（SMB 上删不掉目录）
-BUILD_ROOT="${TMPDIR:-/tmp}/netmount-build"
+BUILD_ROOT="${TMPDIR:-/tmp}/kesonmount-build"
 APP="$BUILD_ROOT/$NAME.app"
 DEST="/Applications/$NAME.app"
 
@@ -30,7 +30,7 @@ swiftc -O -swift-version 5 \
   -framework AppKit -framework WebKit -framework Foundation -framework Network \
   -framework UserNotifications -framework ServiceManagement \
   "$SRC"/Sources/*.swift \
-  -o "$APP/Contents/MacOS/NetMount"
+  -o "$APP/Contents/MacOS/KesonMount"
 
 echo "▶ 打包资源…"
 cp "$SRC/Resources/Info.plist" "$APP/Contents/Info.plist"
@@ -41,9 +41,9 @@ fi
 # 内置使用说明书（菜单「帮助 → 使用说明书」读它）
 # 按 Info.plist 的版本号精确取对应那份，别按 mtime 猜（预览器占用旧文件时会挑错）。
 VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$ROOT/Resources/Info.plist")"
-MANUAL="$ROOT/docs/网盘管家使用说明书-$VERSION.pdf"
+MANUAL="$ROOT/docs/KesonMount使用说明书-$VERSION.pdf"
 if [ ! -f "$MANUAL" ]; then
-  MANUAL="$(ls -t "$ROOT"/docs/网盘管家使用说明书*.pdf 2>/dev/null | head -1 || true)"
+  MANUAL="$(ls -t "$ROOT"/docs/KesonMount使用说明书*.pdf 2>/dev/null | head -1 || true)"
 fi
 if [ -n "${MANUAL:-}" ] && [ -f "$MANUAL" ]; then
   cp "$MANUAL" "$APP/Contents/Resources/使用说明书.pdf"
@@ -56,14 +56,14 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 # 就要重新输一次密码解锁。钉死 identifier 后 DR 不再随代码变化，
 # 用户在授权框上点过一次「始终允许」，以后长期有效。
 # 代价：本机上 bundle id 相同的程序会被当成「同一个」——自用开发的取舍。
-SIGN_REQ='designated => identifier "com.keson.netmount"'
+SIGN_REQ='designated => identifier "com.keson.kesonmount"'
 
 if ! codesign --force --deep --sign - -r="$SIGN_REQ" "$APP" >/dev/null 2>&1; then
   echo "⚠️ ad-hoc 签名失败，App 可能无法正常启动" >&2
 fi
 
 echo "▶ 安装到 $DEST …"
-pkill -x NetMount 2>/dev/null || true
+pkill -x KesonMount 2>/dev/null || true
 # 删不掉就停下：旧 bundle 是 root 装的时，rm 会失败，继续 ditto 会把新二进制
 # 合并进旧包——二进制换了、_CodeSignature 还是旧的，App 可能直接被 Gatekeeper 拒启
 if [ -e "$DEST" ] && ! rm -rf "$DEST"; then
@@ -76,7 +76,7 @@ ditto "$APP" "$DEST"
 echo "✅ 完成：$DEST"
 
 # 顺手把装好的 App 同步一份到「文档库」，成品集中在一个文件夹里
-LIB="${NETMOUNT_LIB:-$HOME/Documents/文档库/网盘管家}"
+LIB="${KESONMOUNT_LIB:-${NETMOUNT_LIB:-$HOME/Documents/文档库/KesonMount}}"
 if mkdir -p "$LIB" 2>/dev/null; then
   ditto "$DEST" "$LIB/$NAME.app"
   VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$DEST/Contents/Info.plist" 2>/dev/null || echo "")"

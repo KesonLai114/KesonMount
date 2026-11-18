@@ -22,7 +22,7 @@ final class DriveStore {
     private var credPending: Set<String> = []
     /// 用户主动删掉的磁盘（host|share），下次启动不再自动导回来
     private var dismissed: Set<String> = []
-    /// 本次运行里由网盘管家自己挂上的磁盘（用来区分「谁挂的」）
+    /// 本次运行里由KesonMount 自己挂上的磁盘（用来区分「谁挂的」）
     private var appMounted: Set<UUID> = []
     /// 因为不在允许的 Wi-Fi 里而被跳过自动挂载的盘（界面上要标出来）
     private(set) var networkSkipped: Set<UUID> = []
@@ -76,7 +76,7 @@ final class DriveStore {
         warmPasswordState(for: drive)
     }
 
-    /// 凭据来源：saved（网盘管家存的）/ system（系统里存过，可直接沿用）/ none
+    /// 凭据来源：saved（KesonMount存的）/ system（系统里存过，可直接沿用）/ none
     ///
     /// 只读缓存，绝不在主线程跑 `security`——查系统钥匙串要走子进程，
     /// 一次查 8 个候选名会把界面卡住小半秒。没缓存就先返回 none，
@@ -115,7 +115,33 @@ final class DriveStore {
     private var supportDir: URL {
         let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support")
+        return base.appendingPathComponent("KesonMount", isDirectory: true)
+    }
+
+    /// 改名前的配置目录；只在首次启动且新目录还没有配置时读取并迁移。
+    private var legacySupportDir: URL {
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support")
         return base.appendingPathComponent("NetMount", isDirectory: true)
+    }
+
+    private func migrateLegacyConfigIfNeeded() {
+        guard !fm.fileExists(atPath: configURL.path) else { return }
+        let old = legacySupportDir.appendingPathComponent("drives.json")
+        guard fm.fileExists(atPath: old.path) else { return }
+        try? fm.createDirectory(at: supportDir, withIntermediateDirectories: true)
+        for name in ["drives.json", "dismissed.json"] {
+            let src = legacySupportDir.appendingPathComponent(name)
+            let dst = supportDir.appendingPathComponent(name)
+            guard fm.fileExists(atPath: src.path), !fm.fileExists(atPath: dst.path) else { continue }
+            do {
+                try fm.copyItem(at: src, to: dst)
+                try? fm.removeItem(at: src)
+            } catch {
+                // 拷不过去就保留旧文件，下次启动再试；绝不覆盖已有新配置
+                break
+            }
+        }
     }
 
     private var configURL: URL {
@@ -136,6 +162,7 @@ final class DriveStore {
         // SSID 要提前在后台读：1.2 秒后 autoMountOnLaunch 就要用它判断能不能挂。
         // 现在 currentSSID 只读缓存，启动时不预热就永远是 nil（= 放行）。
         NetworkContext.refreshAsync(force: true)
+        migrateLegacyConfigIfNeeded()
         load()
         // 清掉老版本自动纳管的「服务器根」盘：没有共享名的 smb/webdav 盘在 macOS 上
         // 永远挂不出来（NetFS 必须知道共享名才挂得出卷），留着每次启动只会报错。
@@ -389,7 +416,7 @@ final class DriveStore {
     func importMountedDrives() {
         _ = syncMountedDrives(announce: true)
         notify()
-        // 顺手收拾刚导入可能带来的重复挂载（访达那份 + 网盘管家那份）
+        // 顺手收拾刚导入可能带来的重复挂载（访达那份 + KesonMount那份）
         reconcileMounts()
     }
 
@@ -397,7 +424,7 @@ final class DriveStore {
 
     /// 收拾「同一块共享挂了好几份」的局面。
     ///
-    /// 桌面上四个硬盘图标就是这么来的：老版本网盘管家把盘挂到 `~/Volumes`，
+    /// 桌面上四个硬盘图标就是这么来的：老版本KesonMount把盘挂到 `~/Volumes`，
     /// 访达（或者用户自己连的那次）又挂到 `/Volumes`，同一块共享两份。
     /// 这里只摘明确多余的那几个（`~/Volumes` 下的、系统重复挂出的 `xxx-1`），
     /// 正牌的 `/Volumes/<共享名>` 永远留着；正在被占用、摘不动的就跳过，下次再说。
@@ -587,7 +614,7 @@ final class DriveStore {
                     // 挂载过程中可能刚从系统钥匙串继承了密码，让缓存重新查一次
                     self.invalidatePasswordCache(for: drive)
                     self.systemCredCache[drive.host] = nil
-                    // 记下来：这次是网盘管家自己挂的
+                    // 记下来：这次是KesonMount 自己挂的
                     self.appMounted.insert(drive.id)
                     self.watchdog.markUserMounted(drive.id)
                     self.show(message)
@@ -1006,7 +1033,7 @@ final class DriveStore {
                 originText = ""
             } else if appMounted.contains(drive.id) {
                 origin = "app"
-                originText = "网盘管家挂载"
+                originText = "KesonMount挂载"
             } else {
                 origin = "system"
                 originText = "系统 / 访达挂载"

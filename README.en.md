@@ -1,13 +1,15 @@
 <p align="center">
-  <img src="docs/图标.png" width="120" alt="NetMount icon">
+  <img src="docs/图标.png" width="120" alt="KesonMount icon">
 </p>
 
-# NetMount
+# KesonMount
 
-[![CI](https://github.com/KesonLai114/NetMount/actions/workflows/check.yml/badge.svg)](https://github.com/KesonLai114/NetMount/actions/workflows/check.yml)
+[![CI](https://github.com/KesonLai114/KesonMount/actions/workflows/check.yml/badge.svg)](https://github.com/KesonLai114/KesonMount/actions/workflows/check.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [简体中文](README.md) | **English**
+
+> Formerly NetMount. From 1.6.0 the project is **KesonMount**: existing config files, Keychain passwords, `netmount://` deep links and `NETMOUNT_*` debug environment variables are still recognized and migrated automatically.
 
 A native macOS menu-bar app that keeps your network drives in one place: see capacity at a glance, mount/unmount with one click, and add new SMB, WebDAV or NFS shares without touching code.
 
@@ -15,7 +17,7 @@ A native macOS menu-bar app that keeps your network drives in one place: see cap
 
 ## Why
 
-Mounting a NAS share manually in Finder gives you no overview of its state or free space. NetMount turns that into a small, proper app:
+Mounting a NAS share manually in Finder gives you no overview of its state or free space. KesonMount turns that into a small, proper app:
 
 - See mount state, used/free capacity and mount path for every drive
 - One-click mount, unmount and open, per drive or in bulk
@@ -37,12 +39,12 @@ Mounting a NAS share manually in Finder gives you no overview of its state or fr
 | Password safety | Passwords are read/written in-process via the Security framework, never passed through `ps` |
 | Scan volumes | Manually adopt new network volumes (⌘⇧I) |
 | LAN discovery | Bonjour finds NAS devices on the same network; pick a share and add it in one step |
-| Reuse system credentials | Tries NetMount's saved password, then Finder's saved password, then asks you |
-| Mount source | Shows whether a drive was mounted by NetMount or by Finder, and the real server URL |
+| Reuse system credentials | Tries KesonMount's saved password, then Finder's saved password, then asks you |
+| Mount source | Shows whether a drive was mounted by KesonMount or by Finder, and the real server URL |
 | Menu bar icon | Left-click for a status panel, right-click for the full 19-item menu |
 | Status panel | Version, summary, per-drive state and capacity, with inline mount/unmount |
 | Global hotkeys | ⌥⌘M show/hide, ⌥⌘K mount all, ⌥⌘U unmount all (needs Accessibility permission) |
-| Deep links | `netmount://mountAll`, `netmount://mount?id=...`, usable from Shortcuts/Raycast/scripts |
+| Deep links | `kesonmount://mountAll`, `kesonmount://mount?id=...`, usable from Shortcuts/Raycast/scripts |
 | Actionable notifications | Offline notifications include an "Reconnect now" button |
 | Wake-on-LAN | Sends a magic packet if a configured NAS is asleep before retrying |
 | Wi-Fi rules | Per-drive SSID allowlist; auto-remount when you get back home |
@@ -60,8 +62,8 @@ Mounting a NAS share manually in Finder gives you no overview of its state or fr
 Requirements: **macOS 14+** and Command Line Tools (`xcode-select --install`). Full Xcode is not needed.
 
 ```bash
-git clone https://github.com/KesonLai114/NetMount.git
-cd NetMount
+git clone https://github.com/KesonLai114/KesonMount.git
+cd KesonMount
 ./build.sh            # build, install to /Applications and open
 ./build.sh --no-open  # build and install only
 ```
@@ -69,7 +71,7 @@ cd NetMount
 The app is ad-hoc signed (no Apple Developer certificate), so on a fresh Mac Gatekeeper will block the first launch. Control-click the icon and choose **Open**, or run:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/网盘管家.app
+xattr -dr com.apple.quarantine /Applications/KesonMount.app
 ```
 
 Build artifacts must be created on a local disk; the scripts already handle this. Keeping the source on an SMB volume is fine.
@@ -85,16 +87,16 @@ Outputs go to `dist/`. Copy the PKG to a local disk before installing — `insta
 ## Scripts / Shortcuts
 
 ```bash
-open "netmount://show"
-open "netmount://mountAll"
-open "netmount://unmountAll"
-open "netmount://refresh"
-open "netmount://mount?id=<drive-id>"
-open "netmount://unmount?id=<drive-id>"
-open "netmount://reconnect?id=<drive-id>"
+open "kesonmount://show"
+open "kesonmount://mountAll"
+open "kesonmount://unmountAll"
+open "kesonmount://refresh"
+open "kesonmount://mount?id=<drive-id>"
+open "kesonmount://unmount?id=<drive-id>"
+open "kesonmount://reconnect?id=<drive-id>"
 ```
 
-Unknown URLs are ignored. Drive IDs can be found in `~/Library/Application Support/NetMount/drives.json` or via **Export Config**.
+Unknown URLs are ignored. Drive IDs can be found in `~/Library/Application Support/KesonMount/drives.json` or via **Export Config**.
 
 ## Development
 
@@ -104,13 +106,13 @@ Unknown URLs are ignored. Drive IDs can be found in `~/Library/Application Suppo
 ./scripts/sync-version.sh   # sync Info.plist version into the manual HTML
 ```
 
-`check.sh` runs Swift type checking, UI JavaScript syntax, manual version consistency, UI-action ↔ native-bridge matching, and 95 regression assertions. CI runs the same suite on a macOS 14 runner.
+`check.sh` runs Swift type checking, UI JavaScript syntax, manual version consistency, UI-action ↔ native-bridge matching, and 98 regression assertions (including legacy `netmount://` compatibility cases). CI runs the same suite on a macOS 14 runner.
 
 Version numbers come from `Resources/Info.plist` only. See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [SECURITY.md](SECURITY.md) before opening a PR or reporting a vulnerability.
 
 ## Data and security
 
-- Drive config: `~/Library/Application Support/NetMount/drives.json`, written atomically; external edits are backed up before write-back
+- Drive config: `~/Library/Application Support/KesonMount/drives.json`, written atomically; external edits are backed up before write-back
 - Passwords: one Keychain vault keyed by drive ID; never written to config, never in argv
 - Mount point: always `/Volumes/<share>`, same as Finder; custom paths are not supported
 
@@ -120,7 +122,7 @@ Mounting the whole server root (`smb://host/`) is not supported: macOS NetFS req
 
 ## Manual
 
-The illustrated 25-page manual is currently Chinese only: `docs/网盘管家使用说明书-1.6.0.pdf`. It is also bundled into the app and available from **Help → User Manual** (⌘?). The layout source is `docs/说明书.html`.
+The illustrated 25-page manual is currently Chinese only: `docs/KesonMount使用说明书-1.6.0.pdf`. It is also bundled into the app and available from **Help → User Manual** (⌘?). The layout source is `docs/说明书.html`.
 
 ## Support the project
 

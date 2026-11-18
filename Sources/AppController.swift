@@ -87,7 +87,7 @@ final class AppController: NSObject, WKScriptMessageHandler {
 
     func start() {
         // 诊断用：不依赖界面，启动就扫描
-        if ProcessInfo.processInfo.environment["NETMOUNT_LANPROBE"] == "1" {
+        if AppEnvironment.value("LANPROBE") == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 self?.startDiscovery()
             }
@@ -117,13 +117,13 @@ final class AppController: NSObject, WKScriptMessageHandler {
             self?.store.autoMountOnLaunch()
         }
 
-        // 调试用：设置 NETMOUNT_SNAPSHOT=<路径> 可截取界面图
-        if let path = ProcessInfo.processInfo.environment["NETMOUNT_SNAPSHOT"] {
-            let env = ProcessInfo.processInfo.environment
-            let script = env["NETMOUNT_SNAPSHOT_JS"]
-            let delay = Double(env["NETMOUNT_SNAPSHOT_DELAY"] ?? "") ?? 2.2
+        // 调试用：设置 KESONMOUNT_SNAPSHOT=<路径> 可截取界面图
+        if let path = AppEnvironment.value("SNAPSHOT") {
+            let env = AppEnvironment.dictionary
+            let script = env["KESONMOUNT_SNAPSHOT_JS"]
+            let delay = Double(env["KESONMOUNT_SNAPSHOT_DELAY"] ?? "") ?? 2.2
             // 脚本可以比截图早跑（等异步结果时用），不设就跟着截图一起跑
-            let jsDelay = Double(env["NETMOUNT_SNAPSHOT_JS_DELAY"] ?? "") ?? max(0, delay - 0.8)
+            let jsDelay = Double(env["KESONMOUNT_SNAPSHOT_JS_DELAY"] ?? "") ?? max(0, delay - 0.8)
 
             func shoot() {
                 snapshot(to: path)
@@ -278,7 +278,7 @@ final class AppController: NSObject, WKScriptMessageHandler {
             "closeMinimizes": AppSettings.shared.closeMinimizes,
             "globalHotkeys": AppSettings.shared.globalHotkeysEnabled
         ]
-        if ProcessInfo.processInfo.environment["NETMOUNT_LOG"] == "1" {
+        if AppEnvironment.value("LOG") == "1" {
             let s = snapshot["settings"] as? [String: Any] ?? [:]
             FileHandle.standardError.write(
                 "[设置] hideDock=\(s["hideDock"] ?? "?") statusBar=\(s["showStatusBar"] ?? "?") login=\(s["launchAtLogin"] ?? "?") status=\(SMAppService.mainApp.status.rawValue)\n"
@@ -303,7 +303,7 @@ final class AppController: NSObject, WKScriptMessageHandler {
         // 发现结果里可能带主机名 / IP，统一走 Diagnostics 做一次脱敏并留档，
         // 这样「明明扫到了却加不上」这类问题事后能导出来看，不必靠环境变量复现。
         Diagnostics.log("[LAN] \(m)")
-        guard ProcessInfo.processInfo.environment["NETMOUNT_LOG"] == "1" else { return }
+        guard AppEnvironment.value("LOG") == "1" else { return }
         let t = String(format: "%.2f", Date().timeIntervalSince(logStart))
         FileHandle.standardError.write("[LAN +\(t)s] \(m)\n".data(using: .utf8)!)
     }
@@ -338,7 +338,7 @@ final class AppController: NSObject, WKScriptMessageHandler {
         log("startDiscovery 开始 main=\(Thread.isMainThread) gen=\(generation)")
 
         // 6 秒：实测极空间响应要 2.6s，留点余量
-        let secs = Double(ProcessInfo.processInfo.environment["NETMOUNT_LAN_SECS"] ?? "") ?? 6.0
+        let secs = Double(AppEnvironment.value("LAN_SECS") ?? "") ?? 6.0
         LANDiscovery.scan(duration: secs) { [weak self] partial in
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.discoveryGeneration == generation else { return }
@@ -556,7 +556,7 @@ final class AppController: NSObject, WKScriptMessageHandler {
                 if value {
                     // 全局快捷键要「辅助功能」权限，没有就明确引导用户去开
                     if !HotkeyManager.shared.requestPermission() {
-                        store.show("请在「系统设置 › 隐私与安全性 › 辅助功能」里允许网盘管家")
+                        store.show("请在「系统设置 › 隐私与安全性 › 辅助功能」里允许KesonMount")
                     } else {
                         store.show("已开启全局快捷键")
                     }
@@ -691,7 +691,7 @@ final class AppController: NSObject, WKScriptMessageHandler {
         }
         let text = MountService.redact(Diagnostics.exportText(driveSummary: summary))
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "网盘管家诊断-\(AppInfo.version).txt"
+        panel.nameFieldStringValue = "KesonMount诊断-\(AppInfo.version).txt"
         panel.allowedContentTypes = [UTType.plainText]
         panel.canCreateDirectories = true
         panel.begin { [weak self] resp in
@@ -708,7 +708,7 @@ final class AppController: NSObject, WKScriptMessageHandler {
     /// 把磁盘配置导成一个 JSON 文件（备份 / 换机）。前置保存面板让用户挑位置。
     private func exportConfig() {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "网盘管家配置-\(AppInfo.version).json"
+        panel.nameFieldStringValue = "KesonMount配置-\(AppInfo.version).json"
         panel.allowedContentTypes = [UTType.json]
         panel.canCreateDirectories = true
         panel.begin { [weak self] resp in

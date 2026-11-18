@@ -24,7 +24,7 @@ final class StatusPopoverController: NSViewController {
     private static let contentWidth: CGFloat = panelWidth - 28
 
     private let iconView = NSImageView()
-    private let titleLabel = NSTextField(labelWithString: "网盘管家")
+    private let titleLabel = NSTextField(labelWithString: "KesonMount")
     private let versionLabel = NSTextField(labelWithString: "")
     private let summaryLabel = NSTextField(labelWithString: "")
     private let overviewBar = CapacityBar()
@@ -270,7 +270,7 @@ final class StatusPopoverController: NSViewController {
     private func makeFooter() -> NSView {
         let footer = NSView()
 
-        let open = AccentButton(title: "打开网盘管家", kind: .accent,
+        let open = AccentButton(title: "打开KesonMount", kind: .accent,
                                 target: self, action: #selector(openWindow))
         let settings = AccentButton(title: "偏好设置…", kind: .neutral,
                                     target: self, action: #selector(openSettings))
@@ -364,7 +364,7 @@ final class StatusPopoverController: NSViewController {
         title.frame = NSRect(x: 0, y: 20, width: Self.contentWidth, height: 18)
         title.autoresizingMask = []
 
-        let hint = NSTextField(labelWithString: "点下方「打开网盘管家」添加")
+        let hint = NSTextField(labelWithString: "点下方「打开KesonMount」添加")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
         hint.alignment = .center

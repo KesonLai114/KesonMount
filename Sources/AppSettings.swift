@@ -92,7 +92,7 @@ final class AppSettings {
             let ns = error as NSError
             // -54 是权限被占；常见于 App 不在「应用程序」文件夹里
             if ns.domain == NSCocoaErrorDomain, ns.code == 512 {
-                return "开启失败：请把「网盘管家」拖到「应用程序」文件夹后再试（macOS 要求登录项必须是装好的 App）"
+                return "开启失败：请把「KesonMount」拖到「应用程序」文件夹后再试（macOS 要求登录项必须是装好的 App）"
             }
             return "设置失败：\(error.localizedDescription)"
         }

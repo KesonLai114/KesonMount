@@ -94,11 +94,11 @@ final class MountWatchdog {
 
     weak var store: DriveStore?
 
-    let queue = DispatchQueue(label: "netmount.watchdog", qos: .utility)
+    let queue = DispatchQueue(label: "kesonmount.watchdog", qos: .utility)
     /// 重活（扫挂载表、真读写探测）单独一条队列。
     /// 状态队列必须始终保持空闲——界面每秒都可能来问「还要等几秒」，
     /// 它要是被一次 8 秒的 mount 扫描堵住，整个界面就卡死了。
-    private let workQueue = DispatchQueue(label: "netmount.watchdog.work", qos: .utility)
+    private let workQueue = DispatchQueue(label: "kesonmount.watchdog.work", qos: .utility)
 
     /// watchdog 自己持有的磁盘列表副本，由主线程在状态变化时推进来
     private var drivesCopy: [Drive] = []
@@ -133,12 +133,12 @@ final class MountWatchdog {
 
     var isRunning: Bool { timer != nil }
 
-    /// 诊断日志：NETMOUNT_LOG=1 时把每一步决策打到标准输出。
+    /// 诊断日志：KESONMOUNT_LOG=1 时把每一步决策打到标准输出。
     /// 自动重挂是「没人看着的时候自己干活」的功能，出了问题时必须有据可查。
     private func log(_ m: String) {
         // 一直留一份环形记录，用户可一键导出；控制台输出仍由环境变量控制。
         Diagnostics.log("[看门狗] \(m)")
-        guard ProcessInfo.processInfo.environment["NETMOUNT_LOG"] == "1" else { return }
+        guard AppEnvironment.value("LOG") == "1" else { return }
         let line = "[看门狗] \(m)\n"
         if let data = line.data(using: .utf8) {
             FileHandle.standardError.write(data)
@@ -150,9 +150,9 @@ final class MountWatchdog {
     func start() {
         guard timer == nil else { return }
         // 截图 / 自动化调试时不要真的去动用户的磁盘
-        // （NETMOUNT_FORCE_WATCHDOG=1 是给自检用的后门：隐身模式下也跑监控）
+        // （KESONMOUNT_FORCE_WATCHDOG=1 是给自检用的后门：隐身模式下也跑监控）
         guard !AppDelegate.isHeadless
-                || ProcessInfo.processInfo.environment["NETMOUNT_FORCE_WATCHDOG"] == "1" else { return }
+                || AppEnvironment.value("FORCE_WATCHDOG") == "1" else { return }
         guard AppSettings.shared.watchdogEnabled else { return }
 
         let t = DispatchSource.makeTimerSource(queue: queue)
@@ -319,7 +319,7 @@ final class MountWatchdog {
         guard store != nil else { return }
         guard AppSettings.shared.watchdogEnabled else { return }
         guard !AppDelegate.isHeadless
-                || ProcessInfo.processInfo.environment["NETMOUNT_FORCE_WATCHDOG"] == "1" else { return }
+                || AppEnvironment.value("FORCE_WATCHDOG") == "1" else { return }
 
         running = true
         // 先看是不是换网了：换网要清零退避，并让被网络策略跳过的盘重新评估
@@ -536,8 +536,8 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationRouter()
 
     /// 通知分类标识（Info.plist 里不用声明，运行时注册即可）
-    static let category = "netmount.driveDown"
-    static let reconnectAction = "netmount.reconnect"
+    static let category = "kesonmount.driveDown"
+    static let reconnectAction = "kesonmount.reconnect"
     /// userInfo 里放磁盘 id 的键
     static let driveKey = "drive"
 

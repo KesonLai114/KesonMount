@@ -60,7 +60,7 @@ final class StatusBarController: NSObject {
         if let button = item.button {
             button.image = NSImage(
                 systemSymbolName: "externaldrive.connected.to.line.below",
-                accessibilityDescription: "网盘管家"
+                accessibilityDescription: "KesonMount"
             )
             button.image?.isTemplate = true          // 自动适配深浅色菜单栏
             button.target = self
@@ -221,7 +221,7 @@ extension StatusBarController: NSMenuDelegate {
         menu.addItem(summary)
         menu.addItem(.separator())
 
-        menu.addItem(item("打开网盘管家", action: #selector(showMainWindow), key: "o", symbol: "macwindow"))
+        menu.addItem(item("打开KesonMount", action: #selector(showMainWindow), key: "o", symbol: "macwindow"))
         menu.addItem(item("偏好设置…", action: #selector(openSettings), key: "", symbol: "gearshape"))
         menu.addItem(.separator())
 
@@ -294,7 +294,7 @@ extension StatusBarController: NSMenuDelegate {
         menu.addItem(dock)
 
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "退出网盘管家", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "退出KesonMount", action: #selector(quit), keyEquivalent: "q")
         quit.image = img("arrow.right.square")
         quit.target = self
         menu.addItem(quit)
@@ -348,7 +348,7 @@ extension StatusBarController: NSMenuDelegate {
 
     // MARK: - 诊断
 
-    /// 把面板视图强行构建一遍，供自动化校验（NETMOUNT_DUMP_POPOVER=1）：
+    /// 把面板视图强行构建一遍，供自动化校验（KESONMOUNT_DUMP_POPOVER=1）：
     /// 面板是原生 NSPopover，HTML 截图拍不到，只能确认它能构建、不崩
     func dumpPopover() {
         guard let vc = popoverVC else {
@@ -358,13 +358,13 @@ extension StatusBarController: NSMenuDelegate {
         _ = vc.view          // 触发 loadView
         vc.refresh()
         print("[面板] 构建成功 · 尺寸 \(Int(vc.view.frame.width))×\(Int(vc.view.frame.height)) · 磁盘 \(store?.drives.count ?? 0) 块 · 版本 \(AppInfo.full)")
-        if let path = ProcessInfo.processInfo.environment["NETMOUNT_SNAPSHOT_POPOVER"] {
+        if let path = AppEnvironment.value("SNAPSHOT_POPOVER") {
             vc.renderPNG(to: path)
             print("[面板] 已渲染 PNG：\(path)")
         }
     }
 
-    /// 把菜单内容打到标准输出，供自动化校验（NETMOUNT_DUMP_STATUSBAR=1）
+    /// 把菜单内容打到标准输出，供自动化校验（KESONMOUNT_DUMP_STATUSBAR=1）
     func dumpMenu() {
         rebuildMenu()
         print("[菜单栏图标] 共 \(menu.items.count) 项")

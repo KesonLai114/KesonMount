@@ -10,7 +10,7 @@ dist/*.pkg
 dist/_旧构建残留/
 # 旧版说明书 PDF 不入库；只保留当前版本那份，保证 clone 后能打包出完整 App
 docs/*.pdf
-!docs/网盘管家使用说明书-1.6.0.pdf
+!docs/KesonMount使用说明书-1.6.0.pdf
 build/
 *.app/
 

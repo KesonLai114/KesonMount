@@ -26,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "网盘管家"
+        window.title = "KesonMount"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = false
@@ -61,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         controller.start()
 
         // 菜单栏（通知栏）图标：隐藏程序坞时它是唯一入口
-        if !headless || ProcessInfo.processInfo.environment["NETMOUNT_DUMP_STATUSBAR"] == "1" {
+        if !headless || AppEnvironment.value("DUMP_STATUSBAR") == "1" {
             statusBar.install(
                 store: controller.store,
                 windowProvider: { [weak self] in self?.window }
@@ -71,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // 全局快捷键：在别的 App 里也能一键挂载 / 卸载 / 唤出窗口
         setupHotkeys()
 
-        // netmount:// 深链接（快捷指令、脚本、Raycast 之类调进来）
+        // kesonmount:// 深链接（快捷指令、脚本、Raycast 之类调进来）
         NSAppleEventManager.shared().setEventHandler(
             self,
             andSelector: #selector(handleGetURL(_:withReply:)),
@@ -80,16 +80,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
 
         // 自检：打印菜单栏图标菜单结构后退出
-        if ProcessInfo.processInfo.environment["NETMOUNT_DUMP_STATUSBAR"] == "1" {
+        if AppEnvironment.value("DUMP_STATUSBAR") == "1" {
             statusBar.dumpMenu()
-            if ProcessInfo.processInfo.environment["NETMOUNT_DUMP_POPOVER"] == "1" {
+            if AppEnvironment.value("DUMP_POPOVER") == "1" {
                 statusBar.dumpPopover()
             }
             exit(0)
         }
 
-        // 自检：NETMOUNT_DUMP_MENU=1 时打印菜单结构与快捷键后退出
-        if ProcessInfo.processInfo.environment["NETMOUNT_DUMP_MENU"] == "1" {
+        // 自检：KESONMOUNT_DUMP_MENU=1 时打印菜单结构与快捷键后退出
+        if AppEnvironment.value("DUMP_MENU") == "1" {
             AppDelegate.dumpMenu(NSApp.mainMenu, depth: 0)
             exit(0)
         }
@@ -117,11 +117,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    /// 截图 / 自动化运行时自动进入隐身模式，也可用 NETMOUNT_HEADLESS=1 强制开启
+    /// 截图 / 自动化运行时自动进入隐身模式，也可用 KESONMOUNT_HEADLESS=1 强制开启
     static var isHeadless: Bool {
-        let env = ProcessInfo.processInfo.environment
-        if env["NETMOUNT_HEADLESS"] == "1" { return true }
-        return env["NETMOUNT_SNAPSHOT"] != nil
+        let env = AppEnvironment.dictionary
+        if env["KESONMOUNT_HEADLESS"] == "1" { return true }
+        return env["KESONMOUNT_SNAPSHOT"] != nil
     }
 
     /// 关掉窗口后要不要退出：按设置来。选了「最小化到后台」时即便窗口真的关了也不退
@@ -196,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: - 深链接
 
-    /// `open "netmount://mountAll"` 之类的入口。
+    /// `open "kesonmount://mountAll"` 之类的入口。
     /// 事件来自任意 App，一律先回主线程再动状态。
     @objc private func handleGetURL(_ event: NSAppleEventDescriptor,
                                     withReply reply: NSAppleEventDescriptor) {
@@ -274,11 +274,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let appItem = NSMenuItem()
         mainMenu.addItem(appItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "关于 网盘管家",
+        appMenu.addItem(withTitle: "关于 KesonMount",
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                         keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "隐藏 网盘管家",
+        appMenu.addItem(withTitle: "隐藏 KesonMount",
                         action: #selector(NSApplication.hide(_:)),
                         keyEquivalent: "h")
         appMenu.addItem(.separator())
@@ -286,7 +286,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsItem.target = self
         appMenu.addItem(settingsItem)
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "退出 网盘管家",
+        appMenu.addItem(withTitle: "退出 KesonMount",
                         action: #selector(NSApplication.terminate(_:)),
                         keyEquivalent: "q")
         appItem.submenu = appMenu

@@ -14,7 +14,9 @@ import Security
 enum Keychain {
 
     /// 统一密码库的服务名
-    private static let vaultService = "NetMount"
+    private static let vaultService = "KesonMount"
+    /// 改名前的服务名，只读迁移用
+    private static let legacyVaultService = "NetMount"
     private static let vaultAccount = "vault"
 
     /// 进程内缓存。钥匙串读一次就够了，反复读只会反复触发授权。
@@ -31,23 +33,46 @@ enum Keychain {
     /// 原因：ad-hoc 签名的 App 每重新编译一次，二进制的 cdhash 就变了，钥匙串里
     /// 按条目记录的授权随之失效——重新编译后第一次读密码就会弹框要授权。
     /// 条目越多弹得越多：两块盘就弹两次，十块盘弹十次。合成一条只弹一次。
-    private static func loadVault() -> [String: String] {
-        lock.lock()
-        defer { lock.unlock() }
-        if let vault { return vault }
+    private static func readVault(service: String) -> [String: String]? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: vaultService,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: vaultAccount,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
         var out: AnyObject?
-        var dict: [String: String] = [:]
-        if SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
-           let data = out as? Data,
-           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
-            dict = decoded
+        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
+              let data = out as? Data,
+              let decoded = try? JSONDecoder().decode([String: String].self, from: data) else { return nil }
+        return decoded
+    }
+
+    private static func deleteVault(service: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: vaultAccount
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+
+    private static func loadVault() -> [String: String] {
+        lock.lock()
+        defer { lock.unlock() }
+        if let vault { return vault }
+        var dict = readVault(service: vaultService) ?? [:]
+        // 改名前的统一库叫 NetMount。冷启动读到旧库时合并进新库（新库同 id 优先），
+        // 写成功再删旧库——迁移半途失败也还有旧库兜底，不会凭空丢密码。
+        if let old = readVault(service: legacyVaultService), !old.isEmpty {
+            var merged = old
+            for (id, pw) in dict { merged[id] = pw }
+            if merged != dict {
+                dict = merged
+                if writeVault(dict) { deleteVault(service: legacyVaultService) }
+            } else {
+                deleteVault(service: legacyVaultService)
+            }
         }
         vault = dict
         return dict
@@ -73,7 +98,7 @@ enum Keychain {
         return true
     }
 
-    // MARK: - 网盘管家自己存的密码（generic password）
+    // MARK: - KesonMount 自己存的密码（generic password）
 
     /// 把密码存进钥匙串。返回是否真的写成功了。
     ///
@@ -87,6 +112,7 @@ enum Keychain {
         var dict = loadVault()
         dict[drive.id.uuidString] = password
         guard writeVault(dict) else { return false }
+        deleteVault(service: legacyVaultService)
         deleteLegacy(for: drive)
         return true
     }
@@ -118,6 +144,7 @@ enum Keychain {
         if dict.removeValue(forKey: drive.id.uuidString) != nil {
             _ = writeVault(dict)
         }
+        deleteVault(service: legacyVaultService)
         deleteLegacy(for: drive)
     }
 
@@ -166,7 +193,7 @@ enum Keychain {
     }
 
     /// 取出系统保存的密码。
-    /// 注意：这一步系统可能会弹一次「网盘管家想要访问钥匙串」的授权框，
+    /// 注意：这一步系统可能会弹一次「KesonMount想要访问钥匙串」的授权框，
     /// 用户点「始终允许」之后就安静了。
     static func systemPassword(host: String, username: String) -> String? {
         guard !host.isEmpty else { return nil }
